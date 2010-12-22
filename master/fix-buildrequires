@@ -1,0 +1,12 @@
+diff -r a48cacdd64b5 mk/xen-device-model.spec.in
+--- a/mk/xen-device-model.spec.in
++++ b/mk/xen-device-model.spec.in
+@@ -7,7 +7,7 @@
+ Source0: xen-device-model-%{version}.tar.bz2
+ Patch0: xen-device-model-development.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+-BuildRequires: SDL-devel
++BuildRequires: SDL-devel, zlib-devel, xen-devel, ncurses-devel, pciutils-devel
+ 
+ %description
+ This package contains qemu-dm, the Xen device model.

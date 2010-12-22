@@ -1,0 +1,358 @@
+Provide a device model for Windows to use to stream crashdump data
+out to dom0.
+* * *
+
+diff -r 65c40e121eb9 hw/crashdump.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/hw/crashdump.c	Fri Nov 19 17:20:19 2010 +0000
+@@ -0,0 +1,258 @@
++/* Stupid driver to make it easy to get kernel crashdumps out of
++   Windows guests */
++#include <sys/types.h>
++#include <stdint.h>
++#include <dirent.h>
++#include <limits.h>
++#include <stdio.h>
++#include <string.h>
++#include <stdlib.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include "cpu.h"
++#include "exec-all.h"
++
++#include "hw.h"
++#include "pci.h"
++#include "qemu-xen.h"
++
++#define CRASHDUMP_CONTROL_PORT  0xeb
++#define CRASHDUMP_DATA_PORT     0xec
++
++#define CRASHDUMP_VERSION       1
++
++static const char *crashdump_dir;
++static char *crashdump_path;
++static long long crashdump_quota;
++static int crashdump_fd = -1;
++static int crashdump_failed;
++static int crashdump_registered;
++
++static void
++open_crashdump(void)
++{
++    DIR *d = NULL;
++    struct dirent *de;
++    char *path = NULL;
++    int nr_files;
++    int e;
++    int fd;
++
++    d = opendir(crashdump_dir);
++    if (d == NULL) {
++        fprintf(logfile, "cannot open %s: %s\n", crashdump_dir,
++                strerror(errno));
++        goto fail;
++    }
++
++    nr_files = 0;
++    while ((de = readdir(d))) {
++        struct stat sb;
++
++        if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
++            continue;
++
++        if (asprintf(&path, "%s/%s", crashdump_dir, de->d_name) == -1) {
++            fprintf(logfile, "cannot allocate memory\n");
++            goto fail;
++        }
++
++        if (stat(path, &sb) < 0) {
++            fprintf(logfile, "cannot stat %s: %s\n", path, strerror(errno));
++            goto fail;
++        }
++        if (sb.st_size != 0) {
++            crashdump_quota -= sb.st_size;
++            nr_files++;
++        }
++
++        free(path);
++    }
++    closedir(d);
++    d = NULL;
++
++    /* If we run below 64k, give up, since we won't even be able to
++       get a minidump out. */
++    if (crashdump_quota < 65536) {
++        fprintf(logfile, "out of quota\n");
++        goto fail;
++    }
++
++    fprintf(logfile, "available crashdump quota = %lldk\n",
++            crashdump_quota / 1024);
++
++    /* Create the dump file */
++    for (e = nr_files; e < nr_files * 2 + 1; e++) {
++        if (asprintf(&path, "%s/%d", crashdump_dir, e) < 0) {
++            fprintf(logfile, "allocating memory: %s\n", strerror(errno));
++            goto fail;
++        }
++
++        fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
++        if (fd >= 0) /* success */
++            break;
++
++        if (errno != EEXIST) {
++            fprintf(logfile, "openning %s: %s\n", path, strerror(errno));
++            goto fail;
++        }
++
++        free(path);
++    }
++    if (e == nr_files * 2 + 1) {
++        fprintf(logfile, "cannot find a place to dump to in %s\n",
++                crashdump_dir);
++        goto fail;
++    }
++
++    crashdump_path = path;
++    crashdump_fd = fd;
++    return;
++
++fail:
++    if (path != NULL) {
++        free(path);
++        path = NULL;
++    }
++
++    if (d != NULL) {
++        closedir(d);
++        d = NULL;
++    }
++}
++
++static void
++close_crashdump(void)
++{
++    /* Leave incomplete crash dumps tp be tidied up */
++    if (crashdump_failed)
++        return;
++
++    close(crashdump_fd);
++    crashdump_fd = -1;
++
++    free(crashdump_path);
++    crashdump_path = NULL;
++}
++
++static int
++write_crashdump_page(target_phys_addr_t addr)
++{
++    char buf[TARGET_PAGE_SIZE];
++    int count;
++    int rc;
++
++    if (crashdump_fd < 0)
++        return -1;
++
++    if (crashdump_quota < 0) {
++        fprintf(logfile, "out of quota\n");
++        return -1;
++    }
++
++    cpu_physical_memory_rw(addr, buf, TARGET_PAGE_SIZE, 0);
++
++    for (count = 0; count < TARGET_PAGE_SIZE; count += rc) {
++        rc = write(crashdump_fd, buf, TARGET_PAGE_SIZE);
++        if (rc <= 0) {
++            fprintf(logfile, "failed to write to dump file (%d, %s)\n",
++                    rc, strerror(errno));
++            return -1;
++        }
++    }
++
++    crashdump_quota -= TARGET_PAGE_SIZE;
++    return 0;
++}
++
++static uint32_t
++control_port_read(void *ign, uint32_t ign2)
++{
++    unsigned char version = CRASHDUMP_VERSION;
++
++    fprintf(logfile, "Crashdump version (%02x).\n", version);
++
++    return (uint32_t)version;
++}
++
++static uint32_t
++data_port_read(void *ign, uint32_t ign2)
++{
++    return (uint32_t)((crashdump_registered) ? 0x00 : 0xff);
++}
++
++static void
++control_port_write(void *ign, uint32_t ign2, uint32_t data)
++{
++    switch ((unsigned char)data) {
++    case 0x00:
++        fprintf(logfile, "Crashdump callback is registered.\n");
++        crashdump_registered = 1;
++        break;
++    case 0x01:
++        fprintf(logfile, "Starting crashdump.\n");
++        open_crashdump();
++        break;
++    case 0x02:
++        fprintf(logfile, "Completing crashdump (%s).\n", crashdump_path);
++        close_crashdump();
++        break;
++    default:
++        fprintf(logfile, "unknown crashdump control port write (%02x)\n",
++                (unsigned char)data);
++        break;
++    }
++}
++
++static void
++data_port_write(void *ign, uint32_t ign2, uint32_t data)
++{
++    target_phys_addr_t addr = data;
++
++    if (crashdump_failed)
++        return;
++    
++    addr <<= TARGET_PAGE_BITS;
++
++    if (write_crashdump_page(addr) < 0)
++        crashdump_failed = 1;
++}
++
++static void
++tidy_up(void)
++{
++    if (crashdump_fd < 0)
++        return;
++
++    /* The crashdump did not terminate cleanly */
++    close(crashdump_fd);
++
++    fprintf(logfile, "Cleaning up failed crashdump: %s\n", crashdump_path);
++    unlink(crashdump_path);
++    free(crashdump_path);
++}
++
++void setup_crashdump(const char *dir, long long quota)
++{
++    crashdump_dir = dir;
++
++    /* Set an initial value for available crashdump quota */
++    crashdump_quota = (quota >= 0) ?
++                      quota * 1024 * 1024 :
++                      LONG_LONG_MAX;
++
++    register_ioport_read(CRASHDUMP_CONTROL_PORT, 1, 1,
++                         control_port_read, NULL);
++    register_ioport_read(CRASHDUMP_DATA_PORT, 1, 1,
++                         data_port_read, NULL);
++
++    register_ioport_write(CRASHDUMP_CONTROL_PORT, 1, 1,
++                          control_port_write, NULL);
++    register_ioport_write(CRASHDUMP_DATA_PORT, 4, 4,
++                          data_port_write, NULL);
++
++    fprintf(logfile, "crashdump ports enabled\n");
++
++    atexit(tidy_up);
++}
+diff -r 65c40e121eb9 qemu-xen.h
+--- a/qemu-xen.h	Fri Nov 19 17:11:00 2010 +0000
++++ b/qemu-xen.h	Fri Nov 19 17:20:19 2010 +0000
+@@ -138,4 +138,7 @@ int has_tpm_device_danger(void);
+ static void vga_dirty_log_start(void *s) { }
+ static void vga_dirty_log_stop(void *s) { }
+ 
++/* crashdump.c */
++void setup_crashdump(const char *crashdump_dir, long long crashdump_quota);
++
+ #endif /*QEMU_XEN_H*/
+diff -r 65c40e121eb9 vl.c
+--- a/vl.c	Fri Nov 19 17:11:00 2010 +0000
++++ b/vl.c	Fri Nov 19 17:20:19 2010 +0000
+@@ -58,6 +58,7 @@
+ #include <errno.h>
+ #include <sys/time.h>
+ #include <zlib.h>
++#include <err.h>
+ 
+ #ifndef _WIN32
+ #include <pwd.h>
+@@ -4317,6 +4318,8 @@ enum {
+     QEMU_OPTION_incoming,
+     QEMU_OPTION_chroot,
+     QEMU_OPTION_runas,
++    QEMU_OPTION_crashdump_dir,
++    QEMU_OPTION_crashdump_quota,
+ };
+ 
+ typedef struct QEMUOption {
+@@ -4470,6 +4473,8 @@ static const QEMUOption qemu_options[] =
+     { "incoming", HAS_ARG, QEMU_OPTION_incoming },
+     { "chroot", HAS_ARG, QEMU_OPTION_chroot },
+     { "runas", HAS_ARG, QEMU_OPTION_runas },
++    { "dumpdir", HAS_ARG, QEMU_OPTION_crashdump_dir },
++    { "dumpquota", HAS_ARG, QEMU_OPTION_crashdump_quota },
+     { NULL },
+ };
+ 
+@@ -4824,7 +4829,8 @@ int main(int argc, char **argv, char **e
+     struct passwd *pwd = NULL;
+     const char *chroot_dir = NULL;
+     const char *run_as = NULL;
+-
++    char *crashdump_dir = NULL;
++    long long crashdump_quota = 0;
+     qemu_cache_utils_init(envp);
+     logfile = stderr; /* initial value */
+ 
+@@ -5579,6 +5585,14 @@ int main(int argc, char **argv, char **e
+             case QEMU_OPTION_gfx_passthru:
+                 select_vgahw("passthrough");
+                 break;
++            case QEMU_OPTION_crashdump_dir:
++                crashdump_dir = (char *) optarg;
++                fprintf(logfile, "qemu: crashdump dir is %s\n", crashdump_dir);
++                break;
++            case QEMU_OPTION_crashdump_quota:
++                crashdump_quota = strtoll(optarg, NULL, 0);
++                fprintf(logfile, "qemu: crashdump quota is %lldMB\n", crashdump_quota);
++                break;
+             }
+         }
+     }
+@@ -5854,6 +5868,15 @@ int main(int argc, char **argv, char **e
+     register_savevm("timer", 0, 2, timer_save, timer_load, NULL);
+     register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);
+ 
++    if (crashdump_quota != 0 && !crashdump_dir) {
++        fprintf(stderr, "can only set crashdump quota if crashdump dir also set\n");
++        exit(1);
++    }
++
++    if (crashdump_dir) {
++        setup_crashdump(crashdump_dir, crashdump_quota);
++    }
++
+ #ifndef _WIN32
+ #ifndef CONFIG_DM
+     /* must be after terminal init, SDL library changes signal handlers */
+diff -r 65c40e121eb9 xen-hooks.mak
+--- a/xen-hooks.mak	Fri Nov 19 17:11:00 2010 +0000
++++ b/xen-hooks.mak	Fri Nov 19 17:20:19 2010 +0000
+@@ -25,6 +25,7 @@ LDFLAGS := $(CFLAGS) $(LDFLAGS)
+ OBJS += piix4acpi.o
+ OBJS += xenstore.o
+ OBJS += xen_platform.o
++OBJS += crashdump.o
+ OBJS += xen_machine_fv.o
+ OBJS += xen_machine_pv.o
+ OBJS += xen_backend.o

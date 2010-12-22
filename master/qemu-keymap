@@ -1,0 +1,151 @@
+diff -r 2be10a4b1803 console.h
+--- a/console.h	Tue Nov 30 13:36:24 2010 +0000
++++ b/console.h	Tue Nov 30 13:36:49 2010 +0000
+@@ -317,6 +317,7 @@ void vnc_display_close(DisplayState *ds)
+ int vnc_display_open(DisplayState *ds, const char *display);
+ int vnc_display_password(DisplayState *ds, const char *password);
+ void do_info_vnc(void);
++void vnc_keymap_change(char *keymap);
+ 
+ /* curses.c */
+ void curses_display_init(DisplayState *ds, int full_screen);
+diff -r 2be10a4b1803 sysemu.h
+--- a/sysemu.h	Tue Nov 30 13:36:24 2010 +0000
++++ b/sysemu.h	Tue Nov 30 13:36:49 2010 +0000
+@@ -90,7 +90,7 @@ extern int graphic_width;
+ extern int graphic_height;
+ extern int graphic_depth;
+ extern int nographic;
+-extern const char *keyboard_layout;
++extern char *keyboard_layout;
+ extern int win2k_install_hack;
+ extern int rtc_td_hack;
+ extern int alt_grab;
+diff -r 2be10a4b1803 vl.c
+--- a/vl.c	Tue Nov 30 13:36:24 2010 +0000
++++ b/vl.c	Tue Nov 30 13:36:49 2010 +0000
+@@ -204,7 +204,7 @@ static DisplayState *display_state;
+ int nographic;
+ static int curses;
+ static int sdl;
+-const char* keyboard_layout = NULL;
++char* keyboard_layout = NULL;
+ int64_t ticks_per_sec;
+ ram_addr_t ram_size;
+ int nb_nics;
+@@ -5261,7 +5261,7 @@ int main(int argc, char **argv, char **e
+                 autostart = 0;
+                 break;
+ 	    case QEMU_OPTION_k:
+-		keyboard_layout = optarg;
++		keyboard_layout = strdup(optarg);
+ 		break;
+             case QEMU_OPTION_localtime:
+                 rtc_utc = 0;
+diff -r 2be10a4b1803 vnc.c
+--- a/vnc.c	Tue Nov 30 13:36:24 2010 +0000
++++ b/vnc.c	Tue Nov 30 13:36:49 2010 +0000
+@@ -2472,6 +2472,28 @@ static void vnc_listen_read(void *opaque
+     }
+ }
+ 
++void vnc_keymap_change(char *keymap)
++{
++    kbd_layout_t *new_layout;
++
++    if (keyboard_layout && !strcmp(keymap, keyboard_layout))
++        return;
++
++    new_layout = init_keyboard_layout(keymap);
++    if (!new_layout) {
++        fprintf(stderr, "Failed to initialise new keyboard layout\n");
++        return;
++    }
++
++    fprintf(stderr, "Initialise new keyboard layout %s\n", keymap);
++
++    qemu_free(keyboard_layout);
++    qemu_free(vnc_display->kbd_layout);
++
++    keyboard_layout = strdup(keymap);
++    vnc_display->kbd_layout = new_layout;
++}
++
+ void vnc_display_init(DisplayState *ds)
+ {
+     VncDisplay *vs = qemu_mallocz(sizeof(*vs));
+diff -r 2be10a4b1803 xenstore.c
+--- a/xenstore.c	Tue Nov 30 13:36:24 2010 +0000
++++ b/xenstore.c	Tue Nov 30 13:36:49 2010 +0000
+@@ -22,11 +22,16 @@
+ #include "pci.h"
+ #include "qemu-timer.h"
+ #include "qemu-xen.h"
++#include "console.h"
++
++/* The token used to identify the keymap watch. */
++#define KEYMAP_TOKEN "keymap"
+ 
+ struct xs_handle *xsh = NULL;
+ static char *media_filename[MAX_DRIVES+1];
+ static QEMUTimer *insert_timer = NULL;
+ static char *xenbus_param_paths[MAX_DRIVES+1];
++static char *guest_path;
+ 
+ int xenstore_find_device(BlockDriverState *bs)
+ {
+@@ -444,6 +449,8 @@ void xenstore_parse_domain_config(int hv
+     unsigned int len, num, hd_index, pci_devid = 0;
+     BlockDriverState *bs;
+     BlockDriver *format;
++    char *target_path = NULL, *target_domids = NULL;
++    int target_domid = 0;
+ 
+     /* Read-only handling for image files */
+     char *mode = NULL;
+@@ -499,6 +506,21 @@ void xenstore_parse_domain_config(int hv
+         goto out;
+     }
+ 
++#ifndef CONFIG_STUBDOM
++    if (pasprintf(&buf, "%s/target", danger_path) != -1)
++        target_domids = xs_read(xsh, XBT_NULL, buf, &len);
++    if (target_domids) {
++        target_domid = atoi(target_domids);
++        target_path = xs_get_domain_path(xsh, target_domid);
++        guest_path = strdup(target_path);
++    } else {
++        guest_path = strdup(danger_path);
++    }
++
++    if (pasprintf(&buf, "%s/keymap", guest_path) != -1)
++        xs_watch(xsh, buf, KEYMAP_TOKEN); // Ignore failure -- we can muddle on.
++#endif
++
+     if (pasprintf(&danger_buf, "%s/device/vbd", danger_path) == -1)
+         goto out;
+ 
+@@ -810,6 +832,8 @@ void xenstore_parse_domain_config(int hv
+     free(danger_buf);
+     free(danger_path);
+     free(e_danger);
++    free(target_path);
++    free(target_domids);
+     free(drv);
+     return;
+ }
+@@ -1059,6 +1083,14 @@ void xenstore_process_event(void *opaque
+         goto out;
+     }
+ 
++    if (!strcmp(vec[XS_WATCH_TOKEN], KEYMAP_TOKEN)) {
++	image = xs_read(xsh, XBT_NULL, vec[XS_WATCH_PATH], &len);
++ 	if (image == NULL)
++ 	    goto out;
++	vnc_keymap_change(image);
++	goto out;
++    }
++
+     if (!strcmp(vec[XS_WATCH_TOKEN], "logdirty")) {
+         xenstore_process_logdirty_event();
+         goto out;

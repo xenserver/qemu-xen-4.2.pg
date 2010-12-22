@@ -1,0 +1,37 @@
+diff -r 730b97ac2f32 net.h
+--- a/net.h	Tue Nov 30 11:14:59 2010 +0000
++++ b/net.h	Tue Nov 30 12:57:25 2010 +0000
+@@ -108,8 +108,8 @@ void net_host_device_add(const char *dev
+ void net_host_device_remove(int vlan_id, const char *device);
+ 
+ #ifndef DEFAULT_NETWORK_SCRIPT
+-#define DEFAULT_NETWORK_SCRIPT "/etc/qemu-ifup"
+-#define DEFAULT_NETWORK_DOWN_SCRIPT "/etc/qemu-ifdown"
++#define DEFAULT_NETWORK_SCRIPT ""
++#define DEFAULT_NETWORK_DOWN_SCRIPT ""
+ #endif
+ #ifdef __sun__
+ #define SMBD_COMMAND "/usr/sfw/sbin/smbd"
+diff -r 730b97ac2f32 xen-config-host.h
+--- a/xen-config-host.h	Tue Nov 30 11:14:59 2010 +0000
++++ b/xen-config-host.h	Tue Nov 30 12:57:25 2010 +0000
+@@ -44,4 +44,7 @@ extern unsigned int xen_logdirty_enable;
+ #undef HAVE_IOVEC
+ #endif
+ 
++#undef DEFAULT_NETWORK_SCRIPT
++#undef DEFAULT_NETWORK_DOWN_SCRIPT
++
+ #endif /*XEN_CONFIG_HOST_H*/
+diff -r 730b97ac2f32 xen-setup
+--- a/xen-setup	Tue Nov 30 11:14:59 2010 +0000
++++ b/xen-setup	Tue Nov 30 12:57:25 2010 +0000
+@@ -29,8 +29,6 @@ ln -sf ../xen-config.mak $target/config.
+ cat xen-config-host.mak >>config-host.mak
+ 
+ sed -e 's,qemu,xen/qemu,' config-host.h >config-host.h.new
+-echo "#define DEFAULT_NETWORK_SCRIPT      \"${XEN_SCRIPT_DIR}/qemu-ifup\"" >>config-host.h.new
+-echo "#define DEFAULT_NETWORK_DOWN_SCRIPT \"${XEN_SCRIPT_DIR}/qemu-ifdown\"" >>config-host.h.new
+ echo '#include "xen-config-host.h"' >>config-host.h.new
+ 
+ if test -f config-host.h~; then mv config-host.h~ config-host.h; fi

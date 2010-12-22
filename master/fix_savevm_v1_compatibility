@@ -1,0 +1,266 @@
+diff --git a/hw/cirrus_vga.c b/hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c
++++ b/hw/cirrus_vga.c
+@@ -3282,6 +3282,7 @@ static void cirrus_init_common(CirrusVGA
+     qemu_register_reset(cirrus_reset, s);
+     cirrus_reset(s);
+     register_savevm("cirrus_vga", 0, 3, cirrus_vga_save, cirrus_vga_load, s);
++    register_savevm("cirrus_vga_pci", 0, 1, NULL, generic_pci_load, s->pci_dev);
+ }
+ 
+ /***************************************
+@@ -3378,10 +3379,9 @@ void pci_cirrus_vga_init(PCIBus *bus, ui
+     s = &d->cirrus_vga;
+     vga_common_init((VGAState *)s,
+                     vga_ram_base, vga_ram_offset, vga_ram_size);
++    s->pci_dev = (PCIDevice *)d;
+     cirrus_init_common(s, device_id, 1);
+ 
+-    s->pci_dev = (PCIDevice *)d;
+-
+     /* setup memory space */
+     /* memory #0 LFB */
+     /* memory #1 memory-mapped I/O */
+diff --git a/hw/hw.h b/hw/hw.h
+--- a/hw/hw.h
++++ b/hw/hw.h
+@@ -69,6 +69,8 @@ int qemu_file_rate_limit(QEMUFile *f);
+ int qemu_file_has_error(QEMUFile *f);
+ void qemu_file_set_error(QEMUFile *f);
+ 
++extern unsigned int loadvm_version_id;
++
+ /* Try to send any outstanding data.  This function is useful when output is
+  * halted due to rate limiting or EAGAIN errors occur as it can be used to
+  * resume output. */
+diff --git a/hw/ide.c b/hw/ide.c
+--- a/hw/ide.c
++++ b/hw/ide.c
+@@ -3764,6 +3764,7 @@ void pci_piix3_ide_init(PCIBus *bus, Blo
+             hd_table[i]->private = &d->dev;
+ 
+     register_savevm("ide", 0, 3, pci_ide_save, pci_ide_load, d);
++    register_savevm("ide_pci", 0, 1, NULL, generic_pci_load, &(d->dev));
+ }
+ 
+ /* hd_table must contain 4 block drivers */
+diff --git a/hw/pci.c b/hw/pci.c
+--- a/hw/pci.c
++++ b/hw/pci.c
+@@ -124,12 +124,14 @@ void pci_device_save(PCIDevice *s, QEMUF
+ 
+ int pci_device_load(PCIDevice *s, QEMUFile *f)
+ {
+-    uint32_t version_id;
++    uint32_t version_id = 1;
+     int i;
+ 
+-    version_id = qemu_get_be32(f);
+-    if (version_id > 2)
+-        return -EINVAL;
++    if (loadvm_version_id > 1) {
++	version_id = qemu_get_be32(f);
++	if (version_id > 2)
++		return -EINVAL;
++    }
+     qemu_get_buffer(f, s->config, 256);
+     pci_update_mappings(s);
+ 
+@@ -140,6 +142,15 @@ int pci_device_load(PCIDevice *s, QEMUFi
+     return 0;
+ }
+ 
++int generic_pci_load(QEMUFile* f, void *opaque, int version_id)
++{
++    PCIDevice* s=(PCIDevice*)opaque;
++
++    qemu_get_buffer(f, s->config, 256);
++    pci_update_mappings(s);
++    return 0;
++}
++
+ static int pci_set_default_subsystem_id(PCIDevice *pci_dev)
+ {
+     uint16_t *id;
+diff --git a/hw/pci.h b/hw/pci.h
+--- a/hw/pci.h
++++ b/hw/pci.h
+@@ -242,6 +242,7 @@ void pci_default_write_config(PCIDevice 
+                               uint32_t address, uint32_t val, int len);
+ void pci_device_save(PCIDevice *s, QEMUFile *f);
+ int pci_device_load(PCIDevice *s, QEMUFile *f);
++int generic_pci_load(QEMUFile* f, void *opaque, int version_id);
+ 
+ typedef void (*pci_set_irq_fn)(qemu_irq *pic, int irq_num, int level);
+ typedef int (*pci_map_irq_fn)(PCIDevice *pci_dev, int irq_num);
+diff --git a/hw/piix4acpi.c b/hw/piix4acpi.c
+--- a/hw/piix4acpi.c
++++ b/hw/piix4acpi.c
+@@ -159,9 +159,11 @@ static int piix4acpi_load(QEMUFile *f, v
+ 
+     if (version_id > 2)
+         return -EINVAL;
+-    ret = pci_device_load(&s->dev, f);
+-    if (ret < 0)
+-        return ret;
++    if (loadvm_version_id > 1) {
++        ret = pci_device_load(&s->dev, f);
++        if (ret < 0)
++            return ret;
++    }
+     qemu_get_be16s(f, &s->pm1_control);
+ 
+     pm1a_evt_address_assigned = s->pm1a_evt_blk_address;
+@@ -423,8 +425,7 @@ static void php_devfn_init(void)
+                          acpi_php_readb, &php_devfn);
+     register_ioport_write(ACPI_PHP_IO_ADDR, NR_PHP_SLOT_REG + 2, 1,
+                           acpi_php_writeb, &php_devfn);
+-    register_savevm("pci_devfn", 0, 1, pci_devfn_save, pci_devfn_load,
+-                    &php_devfn);
++    register_savevm("piix4acpi_pci", 0, 1, NULL, generic_pci_load, &(d->dev));
+ }
+ #endif /* CONFIG_PASSTHROUGH */
+ 
+diff --git a/hw/piix_pci.c b/hw/piix_pci.c
+--- a/hw/piix_pci.c
++++ b/hw/piix_pci.c
+@@ -347,8 +347,7 @@ static void piix_save(QEMUFile* f, void 
+ static int piix_load(QEMUFile* f, void *opaque, int version_id)
+ {
+     PCIDevice *d = opaque;
+-    if (version_id != 2)
+-        return -EINVAL;
++
+     return pci_device_load(d, f);
+ }
+ 
+diff --git a/hw/rtl8139.c b/hw/rtl8139.c
+--- a/hw/rtl8139.c
++++ b/hw/rtl8139.c
+@@ -3483,6 +3483,7 @@ PCIDevice *pci_rtl8139_init(PCIBus *bus,
+ 
+     instance = pci_bus_num(bus) << 8 | s->pci_dev->devfn;
+     register_savevm("rtl8139", instance, 4, rtl8139_save, rtl8139_load, s);
++    register_savevm("rtl8139_pci", instance, 1, NULL, generic_pci_load, s->pci_dev);
+ 
+ #ifdef RTL8139_ONBOARD_TIMER
+     s->timer = qemu_new_timer(vm_clock, rtl8139_timer, s);
+diff --git a/hw/usb-uhci.c b/hw/usb-uhci.c
+--- a/hw/usb-uhci.c
++++ b/hw/usb-uhci.c
+@@ -380,16 +380,19 @@ static int uhci_load(QEMUFile *f, void *
+     if (version_id > 1)
+         return -EINVAL;
+ 
+-    ret = pci_device_load(&s->dev, f);
+-    if (ret < 0)
+-        return ret;
++    if (loadvm_version_id > 1) {
++        ret = pci_device_load(&s->dev, f);
++        if (ret < 0)
++            return ret;
+ 
+-    qemu_get_8s(f, &num_ports);
+-    if (num_ports != NB_PORTS)
+-        return -EINVAL;
++	qemu_get_8s(f, &num_ports);
++	if (num_ports != NB_PORTS)
++	    return -EINVAL;
+ 
+-    for (i = 0; i < num_ports; ++i)
+-        qemu_get_be16s(f, &s->ports[i].ctrl);
++	for (i = 0; i < num_ports; ++i)
++	    qemu_get_be16s(f, &s->ports[i].ctrl);
++    }
++
+     qemu_get_be16s(f, &s->cmd);
+     qemu_get_be16s(f, &s->status);
+     qemu_get_be16s(f, &s->intr);
+@@ -397,6 +400,11 @@ static int uhci_load(QEMUFile *f, void *
+     qemu_get_be32s(f, &s->fl_base_addr);
+     qemu_get_8s(f, &s->sof_timing);
+     qemu_get_8s(f, &s->status2);
++
++    if (loadvm_version_id == 1)
++        for(i = 0; i < NB_PORTS; i++)
++            qemu_get_be16s(f, &s->ports[i].ctrl);
++
+     qemu_get_timer(f, s->frame_timer);
+ 
+     return 0;
+@@ -1100,7 +1108,8 @@ void usb_uhci_piix3_init(PCIBus *bus, in
+     pci_register_io_region(&s->dev, 4, 0x20,
+                            PCI_ADDRESS_SPACE_IO, uhci_map);
+ 
+-    register_savevm("uhci", 0, 1, uhci_save, uhci_load, s);
++    register_savevm("UHCI usb controller", 0, 1, uhci_save, uhci_load, s);
++    register_savevm("UHCI_usb_pci", 0, 1, NULL, generic_pci_load, &(s->dev));
+ }
+ 
+ void usb_uhci_piix4_init(PCIBus *bus, int devfn)
+diff --git a/hw/xen_platform.c b/hw/xen_platform.c
+--- a/hw/xen_platform.c
++++ b/hw/xen_platform.c
+@@ -429,9 +429,6 @@ static int xen_pci_load(QEMUFile *f, voi
+     PCIXenPlatformState *d = opaque;
+     int ret;
+ 
+-    if (version_id > 3)
+-        return -EINVAL;
+-
+     ret = pci_device_load(&d->pci_dev, f);
+     if (ret < 0)
+         return ret;
+diff --git a/savevm.c b/savevm.c
+--- a/savevm.c
++++ b/savevm.c
+@@ -87,6 +87,8 @@
+ #define memalign(align, size) malloc(size)
+ #endif
+ 
++unsigned int loadvm_version_id;
++
+ /* point to the block driver where the snapshots are managed */
+ static BlockDriverState *bs_snapshots;
+ 
+@@ -826,16 +828,21 @@ static int qemu_loadvm_state_v2(QEMUFile
+ {
+     SaveStateEntry *se;
+     int len, ret, instance_id, record_len, version_id;
+-    int64_t total_len, end_pos, cur_pos;
++    int64_t total_len = 0, end_pos = 0, cur_pos = 0;
+     char idstr[256];
+ 
+-    total_len = qemu_get_be64(f);
+-    end_pos = total_len + qemu_ftell(f);
++    if (loadvm_version_id > 1) {
++	total_len = qemu_get_be64(f);
++	end_pos = total_len + qemu_ftell(f);
++    }
+     for(;;) {
+-        if (qemu_ftell(f) >= end_pos)
++        if (loadvm_version_id > 1 && qemu_ftell(f) >= end_pos)
+             break;
+         len = qemu_get_byte(f);
+-        qemu_get_buffer(f, (uint8_t *)idstr, len);
++        if (loadvm_version_id == 1 && !len)
++            break;
++        if (qemu_get_buffer(f, (uint8_t *)idstr, len) <= 0)
++            break;
+         idstr[len] = '\0';
+         instance_id = qemu_get_be32(f);
+         version_id = qemu_get_be32(f);
+@@ -873,10 +880,10 @@ int qemu_loadvm_state(QEMUFile *f)
+     if (v != QEMU_VM_FILE_MAGIC)
+         return -EINVAL;
+ 
+-    v = qemu_get_be32(f);
+-    if (v == QEMU_VM_FILE_VERSION_COMPAT)
++    loadvm_version_id = qemu_get_be32(f);
++    if (loadvm_version_id < QEMU_VM_FILE_VERSION)
+         return qemu_loadvm_state_v2(f);
+-    if (v != QEMU_VM_FILE_VERSION)
++    else if (loadvm_version_id != QEMU_VM_FILE_VERSION)
+         return -ENOTSUP;
+ 
+     while ((section_type = qemu_get_byte(f)) != QEMU_VM_EOF) {

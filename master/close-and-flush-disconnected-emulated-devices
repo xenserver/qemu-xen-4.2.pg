@@ -1,0 +1,50 @@
+diff -r 140d92dcdea5 block-raw-posix.c
+--- a/block-raw-posix.c	Tue Aug 25 16:19:12 2009 +0100
++++ b/block-raw-posix.c	Tue Aug 25 18:25:14 2009 +0100
+@@ -54,6 +54,7 @@
+ #include <sys/ioctl.h>
+ #include <linux/cdrom.h>
+ #include <linux/fd.h>
++#include <sys/mount.h>
+ #include <sys/mount.h>
+ #endif
+ #ifdef __FreeBSD__
+@@ -161,6 +162,10 @@
+             return ret;
+         }
+     }
++#ifndef CONFIG_STUBDOM
++    /* Invalidate buffer cache for this device. */
++    ioctl(s->fd, BLKFLSBUF, 0);
++#endif
+     return 0;
+ }
+ 
+@@ -837,8 +842,13 @@
+ static int raw_flush(BlockDriverState *bs)
+ {
+     BDRVRawState *s = bs->opaque;
++    qemu_aio_flush();
+     if (fsync(s->fd))
+         return errno;
++#ifndef CONFIG_STUBDOM
++    /* Invalidate buffer cache for this device. */
++    ioctl(s->fd, BLKFLSBUF, 0);
++#endif
+     return 0;
+ }
+ 
+diff -r 140d92dcdea5 i386-dm/helper2.c
+--- a/i386-dm/helper2.c	Tue Aug 25 16:19:12 2009 +0100
++++ b/i386-dm/helper2.c	Tue Aug 25 18:25:14 2009 +0100
+@@ -582,6 +582,10 @@
+         do_savevm(qemu_file);
+         free(qemu_file);
+ 
++        ide_unplug_all_harddisks();
++        pci_unplug_all_netifs();
++        net_tap_shutdown_all();
++
+         xenstore_record_dm_state("paused");
+ 
+         /* Wait to be allowed to continue */

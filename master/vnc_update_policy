@@ -1,0 +1,40 @@
+diff -r 9c8b1472d943 vnc.c
+--- a/vnc.c	Tue Aug 04 17:14:03 2009 +0100
++++ b/vnc.c	Tue Aug 04 17:18:00 2009 +0100
+@@ -671,6 +671,8 @@
+     for (vs = vd->clients; vs != NULL; vs = vn) {
+         vn = vs->next;
+         if (vnc_has_feature(vs, VNC_FEATURE_COPYRECT)) {
++            if (!vs->need_update)
++                vs->need_update++;
+             vs->force_update = 1;
+             vnc_update_client(vs, 1);
+             /* vs might be free()ed here */
+@@ -750,7 +752,7 @@
+ 
+ static int vnc_update_client(VncState *vs, int has_dirty)
+ {
+-    if (vs->need_update && vs->csock != -1) {
++    if (vs->need_update > 0 && vs->csock != -1) {
+         VncDisplay *vd = vs->vd;
+ 	int y;
+ 	int n_rectangles;
+@@ -803,6 +805,9 @@
+ 	vs->output.buffer[saved_offset + 1] = n_rectangles & 0xFF;
+ 	vnc_flush(vs);
+         vs->force_update = 0;
++        vs->need_update--;
++        if (vs->need_update < 0)
++            vs->need_update = 0;
+ 
+         return n_rectangles;
+     }
+@@ -1350,7 +1355,7 @@
+         h = ds_get_height(vs->ds) - y_position;
+ 
+     int i;
+-    vs->need_update = 1;
++    vs->need_update++;
+     if (!incremental) {
+         vs->force_update = 1;
+ 	for (i = 0; i < h; i++) {

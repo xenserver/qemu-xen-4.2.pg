@@ -1,0 +1,90 @@
+diff -r 27222358411b qemu-char.c
+--- a/qemu-char.c	Fri Nov 19 16:20:41 2010 +0000
++++ b/qemu-char.c	Fri Nov 19 16:20:54 2010 +0000
+@@ -588,7 +588,7 @@ static CharDriverState *qemu_chr_open_fi
+ {
+     int fd_out;
+ 
+-    TFR(fd_out = open(file_out, O_WRONLY | O_TRUNC | O_CREAT | O_BINARY, 0666));
++    TFR(fd_out = open(file_out, O_WRONLY | O_APPEND | O_CREAT | O_BINARY, 0666));
+     if (fd_out < 0)
+         return NULL;
+     return qemu_chr_open_fd(-1, fd_out);
+diff -r 27222358411b sysemu.h
+--- a/sysemu.h	Fri Nov 19 16:20:41 2010 +0000
++++ b/sysemu.h	Fri Nov 19 16:20:54 2010 +0000
+@@ -196,6 +196,7 @@ void pci_device_hot_remove_success(int p
+ #define MAX_SERIAL_PORTS 4
+ 
+ extern CharDriverState *serial_hds[MAX_SERIAL_PORTS];
++extern char *serial_devices[MAX_SERIAL_PORTS];
+ 
+ /* parallel ports */
+ 
+diff -r 27222358411b vl.c
+--- a/vl.c	Fri Nov 19 16:20:41 2010 +0000
++++ b/vl.c	Fri Nov 19 16:20:54 2010 +0000
+@@ -232,6 +232,7 @@ static int no_frame = 0;
+ #endif
+ int no_quit = 0;
+ CharDriverState *serial_hds[MAX_SERIAL_PORTS];
++char *serial_devices[MAX_SERIAL_PORTS];
+ CharDriverState *parallel_hds[MAX_PARALLEL_PORTS];
+ CharDriverState *virtcon_hds[MAX_VIRTIO_CONSOLES];
+ #ifdef TARGET_I386
+@@ -4810,7 +4811,6 @@ int main(int argc, char **argv, char **e
+     const char *r, *optarg;
+     CharDriverState *monitor_hd = NULL;
+     const char *monitor_device;
+-    const char *serial_devices[MAX_SERIAL_PORTS];
+     int serial_device_index;
+     const char *parallel_devices[MAX_PARALLEL_PORTS];
+     int parallel_device_index;
+@@ -5959,7 +5959,7 @@ int main(int argc, char **argv, char **e
+             if (!virtcon_hds[i]) {
+                 fprintf(stderr, "qemu: could not open virtio console '%s'\n",
+                         devname);
+-                exit(1);
++                continue;
+             }
+         }
+     }
+diff -r 27222358411b xenstore.c
+--- a/xenstore.c	Fri Nov 19 16:20:41 2010 +0000
++++ b/xenstore.c	Fri Nov 19 16:20:54 2010 +0000
+@@ -431,6 +431,8 @@ void xenstore_parse_domain_config(int hv
+     char *buf = NULL;
+     char *fpath = NULL, *bpath = NULL,
+         *dev = NULL, *params = NULL, *drv = NULL, *name = NULL;
++    char *serial_c;
++    char serial_temp[PATH_MAX - 5];
+     int i, ret;
+     unsigned int len, num, hd_index, pci_devid = 0;
+     BlockDriverState *bs;
+@@ -465,9 +467,25 @@ void xenstore_parse_domain_config(int hv
+             cpu_set_log_syslog(domain_name);
+ 	    cpu_set_log(0);
+ 	}
+-	free(name);
+     }
+ 
++    /* read the console output filename */
++    serial_c = xs_read(xsh, XBT_NULL, "/local/logconsole/@", NULL);
++    if (serial_c) {
++        serial_devices[0] = qemu_mallocz(PATH_MAX);
++	strcpy(serial_devices[0], "file:");
++	if (strstr(serial_c, "%s"))
++	    snprintf(serial_temp, sizeof(serial_temp), serial_c, name);
++	else
++	    snprintf(serial_temp, sizeof(serial_temp), serial_c, domid);
++	strncat(serial_devices[0], serial_temp, sizeof(serial_temp));
++	free(serial_c);
++    }
++    /* we don't care if it failed or not */
++
++    if (name)
++ 	free(name);
++
+     danger_path = xs_get_domain_path(xsh, hvm_domid);
+     if (danger_path == NULL) {
+         fprintf(logfile, "xs_get_domain_path() error\n");

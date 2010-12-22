@@ -1,0 +1,24 @@
+diff -r 38f71eb1fd7b vnc.c
+--- a/vnc.c	Fri Nov 19 17:02:11 2010 +0000
++++ b/vnc.c	Fri Nov 19 17:02:21 2010 +0000
+@@ -2373,7 +2373,7 @@ static int vnc_refresh_server_surface(Vn
+ static void vnc_refresh(void *opaque)
+ {
+     VncDisplay *vd = opaque;
+-    VncState *vs = NULL;
++    VncState *vs = NULL, *vn = NULL;
+     int has_dirty = 0, rects = 0;
+ 
+     vga_hw_update();
+@@ -2382,8 +2382,10 @@ static void vnc_refresh(void *opaque)
+ 
+     vs = vd->clients;
+     while (vs != NULL) {
++        vn = vs->next;
+         rects += vnc_update_client(vs, has_dirty);
+-        vs = vs->next;
++        /* vs might be free()ed here */
++        vs = vn;
+     }
+ 
+     if (has_dirty && rects) {

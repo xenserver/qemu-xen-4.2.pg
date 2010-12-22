@@ -1,0 +1,15 @@
+diff -r 0d13d7285e2a hw/xen_platform.c
+--- a/hw/xen_platform.c	Tue Sep 23 13:52:17 2008 +0100
++++ b/hw/xen_platform.c	Tue Sep 23 13:54:01 2008 +0100
+@@ -253,7 +253,10 @@ void pci_xen_platform_init(PCIBus *bus)
+     pch->class = 0x1; /* Storage device class */
+     pch->subclass = 0x0; /* SCSI subclass */
+     pch->header_type = 0;
+-    pch->interrupt_pin = 1;
++    pch->interrupt_pin = 3; /* Carefully chosen to avoid interrupt
++                               sharing in non-apic systems, which
++                               triggers a bug in the Geneva PV
++                               drivers. */
+ 
+     /* Microsoft WHQL requires non-zero subsystem IDs. */
+     /* http://www.pcisig.com/reflector/msg02205.html.  */

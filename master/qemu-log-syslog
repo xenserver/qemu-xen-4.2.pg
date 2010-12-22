@@ -1,0 +1,190 @@
+diff -r 3c7ef98ff420 Makefile
+--- a/Makefile	Thu Dec 09 16:21:02 2010 +0000
++++ b/Makefile	Thu Dec 09 16:21:35 2010 +0000
+@@ -34,6 +34,10 @@ ifdef CONFIG_WIN32
+ LIBS+=-lwinmm -lws2_32 -liphlpapi
+ endif
+ 
++ifdef CONFIG_LINUX
++LIBS+=-ldl
++endif
++
+ all: $(TOOLS) $(DOCS) recurse-all
+ 
+ SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
+@@ -92,6 +96,7 @@ OBJS+=sd.o ssi-sd.o
+ OBJS+=bt.o bt-host.o bt-vhci.o bt-l2cap.o bt-sdp.o bt-hci.o bt-hid.o usb-bt.o
+ OBJS+=buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
+ OBJS+=qemu-char.o aio.o net-checksum.o savevm.o cache-utils.o
++OBJS+=logging.o
+ 
+ ifdef CONFIG_BRLAPI
+ OBJS+= baum.o
+diff -r 3c7ef98ff420 logging.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/logging.c	Thu Dec 09 16:21:35 2010 +0000
+@@ -0,0 +1,126 @@
++#include "logging.h"
++#include <err.h>
++#include <stdlib.h>
++#include <dlfcn.h>
++
++#define OVERRIDE_LIBC __attribute__((visibility("protected")))
++
++void cpu_set_log_syslog(const char *ident)
++{
++    closelog();
++    openlog(ident, LOG_NOWAIT | LOG_PID, LOG_DAEMON);
++}
++
++static int system_vfprintf(FILE *stream, const char *fmt, va_list ap)
++{
++    static int(*orig_vfprintf)(FILE *stream, const char *fmt, va_list ap);
++    if ( NULL == orig_vfprintf ) {
++        orig_vfprintf = dlsym(RTLD_DEFAULT, "vfprintf");
++        while ( orig_vfprintf == vfprintf ) {
++            orig_vfprintf = dlsym(RTLD_NEXT, "vfprintf");
++        }
++    }
++    return (*orig_vfprintf)(stream, fmt, ap);
++}
++
++static size_t system_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
++{
++    static size_t(*orig_fwrite)(const void *ptr, size_t size, size_t nmemb, FILE *stream);
++    if ( NULL == orig_fwrite) {
++        orig_fwrite = dlsym(RTLD_DEFAULT, "fwrite");
++        while ( orig_fwrite == fwrite ) {
++            orig_fwrite = dlsym(RTLD_NEXT, "fwrite");
++        }
++    }
++    return (*orig_fwrite)(ptr, size, nmemb, stream);
++}
++
++OVERRIDE_LIBC
++size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
++{
++    if ( stream == stdout ) {
++        syslog(LOG_DAEMON | LOG_INFO, "%.*s", size * nmemb, ptr);
++        return nmemb;
++    }
++    if ( stream == stderr ) {
++        syslog(LOG_DAEMON | LOG_ERR, "%.*s", size * nmemb, ptr);
++        return nmemb;
++    }
++    return system_fwrite(ptr, size, nmemb, stream);
++}
++
++OVERRIDE_LIBC
++int vfprintf(FILE *stream, const char *fmt, va_list ap)
++{
++    if ( stream == stdout ) {
++        vsyslog(LOG_DAEMON | LOG_INFO, fmt, ap);
++        return 1;
++    }
++    if ( stream == stderr || stream == NULL ) {
++        vsyslog(LOG_DAEMON | LOG_ERR, fmt, ap);
++        return 1;
++    }
++    return system_vfprintf(stream, fmt, ap);
++}
++
++OVERRIDE_LIBC
++int vprintf(const char *fmt, va_list ap)
++{
++    return vfprintf(stdout, fmt, ap);
++}
++
++OVERRIDE_LIBC
++int fprintf(FILE *stream, const char *fmt, ...)
++{
++    va_list ap;
++    int ret;
++    va_start(ap, fmt);
++    ret = vfprintf(stream, fmt, ap);
++    va_end(ap);
++    return ret;
++}
++
++OVERRIDE_LIBC
++int fputs(const char *str, FILE *stream)
++{
++    return fprintf(stream, "%s", str);
++}
++
++OVERRIDE_LIBC
++int puts(const char *str)
++{
++    return fprintf(stdout, "%s", str);
++}
++
++OVERRIDE_LIBC
++int printf(const char *fmt, ...)
++{
++    va_list ap;
++    int ret;
++    va_start(ap, fmt);
++    ret = vfprintf(stdout, fmt, ap);
++    va_end(ap);
++    return ret;
++}
++
++OVERRIDE_LIBC
++void err(int status, const char *fmt, ...)
++{
++    va_list ap;
++
++    va_start(ap, fmt);
++    vsyslog(LOG_DAEMON | LOG_ERR, fmt, ap);
++    va_end(ap);
++
++    exit(status);
++}
++
++OVERRIDE_LIBC
++void warn(const char *fmt, ...)
++{
++    va_list ap;
++
++    va_start(ap, fmt);
++    vsyslog(LOG_DAEMON | LOG_WARNING, fmt, ap);
++    va_end(ap);
++}
+diff -r 3c7ef98ff420 logging.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/logging.h	Thu Dec 09 16:21:35 2010 +0000
+@@ -0,0 +1,11 @@
++#ifndef QEMU_LOGGING_H
++#define QEMU_LOGGING_H
++
++#include <syslog.h>
++#include <stdarg.h>
++#include <stdio.h>
++
++void cpu_set_log_syslog(const char *ident);
++
++#endif
++
+diff -r 3c7ef98ff420 qemu-common.h
+--- a/qemu-common.h	Thu Dec 09 16:21:02 2010 +0000
++++ b/qemu-common.h	Thu Dec 09 16:21:35 2010 +0000
+@@ -31,6 +31,7 @@
+ #include <fcntl.h>
+ #include <sys/stat.h>
+ #include "config-host.h"
++#include "logging.h"
+ 
+ #ifndef O_LARGEFILE
+ #define O_LARGEFILE 0
+diff -r 3c7ef98ff420 vl.c
+--- a/vl.c	Thu Dec 09 16:21:02 2010 +0000
++++ b/vl.c	Thu Dec 09 16:21:35 2010 +0000
+@@ -5404,6 +5404,8 @@ int main(int argc, char **argv, char **e
+                 snprintf(domain_name, sizeof(domain_name),
+                          "Xen-%s", optarg);
+                 qemu_name = optarg;
++                cpu_set_log_syslog(domain_name);
++                cpu_set_log(0);
+                 break;
+ #if defined(TARGET_SPARC) || defined(TARGET_PPC)
+             case QEMU_OPTION_prom_env:

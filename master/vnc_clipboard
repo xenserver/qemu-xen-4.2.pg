@@ -1,0 +1,272 @@
+diff -r f0322b310ce1 console.h
+--- a/console.h	Tue Nov 30 14:25:56 2010 +0000
++++ b/console.h	Tue Nov 30 14:26:04 2010 +0000
+@@ -318,6 +318,7 @@ int vnc_display_open(DisplayState *ds, c
+ int vnc_display_password(DisplayState *ds, const char *password);
+ void do_info_vnc(void);
+ void vnc_keymap_change(char *keymap);
++void vnc_dpy_set_clipboard(char *text);
+ 
+ /* curses.c */
+ void curses_display_init(DisplayState *ds, int full_screen);
+diff -r f0322b310ce1 qemu-xen.h
+--- a/qemu-xen.h	Tue Nov 30 14:25:56 2010 +0000
++++ b/qemu-xen.h	Tue Nov 30 14:26:04 2010 +0000
+@@ -130,6 +130,7 @@ void xenstore_do_eject(BlockDriverState 
+ int xenstore_find_device(BlockDriverState *bs);
+ void xenstore_dm_finished_startup(void);
+ void xenstore_set_device_locked(BlockDriverState *bs);
++void xenstore_set_guest_clipboard(const char *text, size_t len);
+ 
+ /* xenfbfront.c */
+ int xenfb_pv_display_init(DisplayState *ds);
+diff -r f0322b310ce1 vnc.c
+--- a/vnc.c	Tue Nov 30 14:25:56 2010 +0000
++++ b/vnc.c	Tue Nov 30 14:26:04 2010 +0000
+@@ -40,6 +40,8 @@
+ #include "keymaps.c"
+ #include "d3des.h"
+ 
++void xenstore_set_guest_clipboard(const char *text, size_t len);
++
+ #ifdef CONFIG_VNC_TLS
+ #include <gnutls/gnutls.h>
+ #include <gnutls/x509.h>
+@@ -1138,6 +1140,26 @@ static ssize_t vnc_tls_pull(gnutls_trans
+ 
+ static void client_cut_text(VncState *vs, size_t len, uint8_t *text)
+ {
++    xenstore_set_guest_clipboard(text, len);
++}
++
++static void vnc_set_clipboard(VncState *vs, char *text)
++{
++    char pad[3] = { 0, 0, 0 };
++    vnc_write_u8(vs, 3);	/* ServerCutText */
++    vnc_write(vs, pad, 3);	/* padding */
++    vnc_write_u32(vs, strlen(text));	/* length */
++    vnc_write(vs, text, strlen(text));  /* text */
++    vnc_flush(vs);
++}
++
++void vnc_dpy_set_clipboard(char *text)
++{
++    VncState *vs = vnc_display->clients;
++    while (vs != NULL) {
++        vnc_set_clipboard(vs, text);
++        vs = vs->next;
++    }
+ }
+ 
+ static void check_pointer_type_change(VncState *vs, int absolute)
+diff -r f0322b310ce1 xenstore.c
+--- a/xenstore.c	Tue Nov 30 14:25:56 2010 +0000
++++ b/xenstore.c	Tue Nov 30 14:26:04 2010 +0000
+@@ -27,6 +27,12 @@
+ /* The token used to identify the keymap watch. */
+ #define KEYMAP_TOKEN "keymap"
+ 
++/* The token used to identify the set_clipboard watch. */
++#define SET_CLIPBOARD_TOKEN "set_clipboard"
++
++/* The token used to identify the report_clipboard watch. */
++#define REPORT_CLIPBOARD_TOKEN "report_clipboard"
++
+ struct xs_handle *xsh = NULL;
+ static char *media_filename[MAX_DRIVES+1];
+ static QEMUTimer *insert_timer = NULL;
+@@ -57,6 +63,12 @@ void xenstore_do_eject(BlockDriverState 
+         xs_write(xsh, XBT_NULL, xenbus_param_paths[i], "eject", strlen("eject"));
+ }
+ 
++static struct {
++    int need_reset;
++    char *data;
++    int off;
++} set_clipboard_state;
++
+ void xenstore_set_device_locked(BlockDriverState *bs)
+ {
+     int i;
+@@ -518,7 +530,15 @@ void xenstore_parse_domain_config(int hv
+     }
+ 
+     if (pasprintf(&buf, "%s/keymap", guest_path) != -1)
+-        xs_watch(xsh, buf, KEYMAP_TOKEN); // Ignore failure -- we can muddle on.
++        xs_watch(xsh, buf, KEYMAP_TOKEN); // Ignore failure -- we can muddle on.i
++
++    if (pasprintf(&buf, "%s/data/set_clipboard", guest_path) == -1)
++        goto out;
++    xs_watch(xsh, buf, SET_CLIPBOARD_TOKEN);
++
++    if (pasprintf(&buf, "%s/data/report_clipboard", guest_path) == -1)
++        goto out;
++    xs_watch(xsh, buf, REPORT_CLIPBOARD_TOKEN);
+ #endif
+ 
+     if (pasprintf(&danger_buf, "%s/device/vbd", danger_path) == -1)
+@@ -1068,6 +1088,120 @@ void xenstore_record_dm_state(const char
+     xenstore_record_dm("state", state);
+ }
+ 
++static void set_clipboard_event(void)
++{
++    char *old;
++    int this_time;
++    char *cb_path;
++
++    /* Something happened on the state machine used for setting the
++       guest clipboard. */
++
++    cb_path = NULL;
++    if (guest_path) {
++        if (asprintf(&cb_path, "%s/data/set_clipboard", guest_path) == -1)
++            cb_path = NULL;
++    }
++    if (!cb_path)
++        return;
++
++    old = xs_read(xsh, XBT_NULL, cb_path, NULL);
++    if (old != NULL) {
++        /* Still waiting for the guest to ack the last operation. */
++        free(old);
++        free(cb_path);
++        return;
++    }
++
++    if (set_clipboard_state.need_reset) {
++        xs_write(xsh, XBT_NULL, cb_path, "", 0);
++        free(cb_path);
++        set_clipboard_state.need_reset = 0;
++        return;
++    }
++
++    if (set_clipboard_state.data == NULL) {
++        free(cb_path);
++        return;
++    }
++    this_time = MIN(1024,
++                    strlen(set_clipboard_state.data) -
++                    set_clipboard_state.off);
++    xs_write(xsh,
++             XBT_NULL,
++             cb_path,
++             set_clipboard_state.data + set_clipboard_state.off,
++             this_time);
++    free(cb_path);
++    if (this_time != 0) {
++        set_clipboard_state.off += this_time;
++    } else {
++        free(set_clipboard_state.data);
++        set_clipboard_state.data = NULL;
++        set_clipboard_state.off = 0;
++    }
++}
++
++/* Something happened on the state machine used by the guest to update
++   the VNC clipboard. */
++static void report_clipboard_event(void)
++{
++    static int failed;
++    static char *accumulation;
++    static int acc_len;
++    static int acc_buf_size;
++    int nacc_buf_size;
++    unsigned len;
++    char *chunk;
++    char *nacc_buf;
++    char *cb_path;
++
++    cb_path = NULL;
++    if (guest_path) {
++        if (asprintf(&cb_path, "%s/data/report_clipboard", guest_path) == -1)
++            cb_path = NULL;
++    }
++    if (!cb_path)
++        return;
++
++    chunk = xs_read(xsh, XBT_NULL, cb_path, &len);
++    if (!chunk) {
++        free(cb_path);
++        return;
++    }
++    if (len == 0) {
++        if (accumulation != NULL && !failed)
++            vnc_dpy_set_clipboard(accumulation);
++        else
++            free(accumulation);
++        failed = 0;
++        acc_len = 0;
++        accumulation = NULL;
++        acc_buf_size = 0;
++    } else {
++        if (len + acc_len + 1 > acc_buf_size) {
++            nacc_buf_size = ((len + acc_len + 1) + 63) & ~63;
++            nacc_buf = realloc(accumulation, nacc_buf_size);
++        } else {
++            nacc_buf = accumulation;
++            nacc_buf_size = acc_buf_size;
++        }
++        if (nacc_buf) {
++            acc_buf_size = nacc_buf_size;
++            memcpy(nacc_buf + acc_len, chunk, len);
++            nacc_buf[acc_len + len] = 0;
++            acc_len += len;
++            accumulation = nacc_buf;
++        } else {
++            failed = 1;
++        }
++    }
++    free(chunk);
++
++    xs_rm(xsh, XBT_NULL, cb_path);
++    free(cb_path);
++}
++
+ void xenstore_process_event(void *opaque)
+ {
+     char **vec, *offset, *bpath = NULL, *buf = NULL, *drv = NULL, *image = NULL;
+@@ -1091,6 +1225,16 @@ void xenstore_process_event(void *opaque
+ 	goto out;
+     }
+ 
++    if (!strcmp(vec[XS_WATCH_TOKEN], SET_CLIPBOARD_TOKEN)) {
++        set_clipboard_event();
++        goto out;
++    }
++
++    if (!strcmp(vec[XS_WATCH_TOKEN], REPORT_CLIPBOARD_TOKEN)) {
++        report_clipboard_event();
++        goto out;
++    }
++
+     if (!strcmp(vec[XS_WATCH_TOKEN], "logdirty")) {
+         xenstore_process_logdirty_event();
+         goto out;
+@@ -1667,6 +1811,26 @@ void xenstore_store_serial_port_info(int
+         store_dev_info(devname, domid, chr, "/console");
+ }
+ 
++void xenstore_set_guest_clipboard(const char *text, size_t len)
++{
++    char *dup;
++
++    if (set_clipboard_state.data)
++        set_clipboard_state.need_reset = 1;
++    dup = malloc(len + 1);
++    if (!dup)
++        return;
++    memcpy(dup, text, len);
++    dup[len] = 0;
++
++    set_clipboard_state.off = 0;
++    free(set_clipboard_state.data);
++    set_clipboard_state.data = dup;
++
++    set_clipboard_event();
++}
++
++
+ char *xenstore_dom_read(int domid, const char *key, unsigned int *len)
+ {
+     char *buf = NULL, *path = NULL, *value = NULL;

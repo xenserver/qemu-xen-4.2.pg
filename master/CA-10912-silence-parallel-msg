@@ -1,0 +1,21 @@
+diff -r 7c8e9729cee8 vl.c
+--- a/vl.c	Mon Jun 15 18:30:52 2009 +0100
++++ b/vl.c	Mon Jun 15 18:31:51 2009 +0100
+@@ -5927,8 +5927,6 @@
+         if (devname && strcmp(devname, "none")) {
+             char label[32];
+             snprintf(label, sizeof(label), "serial%d", i);
+-            if (strstart(devname, "vc", 0))
+-                qemu_chr_printf(serial_hds[i], "serial%d console\r\n", i);
+             xenstore_store_serial_port_info(i, serial_hds[i], devname);
+         }
+     }
+@@ -5938,8 +5936,6 @@
+         if (devname && strcmp(devname, "none")) {
+             char label[32];
+             snprintf(label, sizeof(label), "parallel%d", i);
+-            if (strstart(devname, "vc", 0))
+-                qemu_chr_printf(parallel_hds[i], "parallel%d console\r\n", i);
+         }
+     }
+ 

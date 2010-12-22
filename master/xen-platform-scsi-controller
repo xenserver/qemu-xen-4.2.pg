@@ -1,0 +1,14 @@
+diff -r 474950d1d8bb hw/xen_platform.c
+--- a/hw/xen_platform.c	Fri Sep 19 18:02:11 2008 +0100
++++ b/hw/xen_platform.c	Fri Sep 19 18:20:41 2008 +0100
+@@ -236,8 +236,8 @@
+     pch->command = 3; /* IO and memory access */
+     pch->revision = 1;
+     pch->api = 0;
+-    pch->subclass = 0x80; /* Other */
+-    pch->class = 0xff; /* Unclassified device class */
++    pch->class = 0x1; /* Storage device class */
++    pch->subclass = 0x0; /* SCSI subclass */
+     pch->header_type = 0;
+     pch->interrupt_pin = 1;
+ 

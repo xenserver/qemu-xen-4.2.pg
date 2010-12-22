@@ -1,0 +1,129 @@
+diff --git a/hw/pci.h b/hw/pci.h
+index 46e4bf5..c5e9a76 100644
+--- a/hw/pci.h
++++ b/hw/pci.h
+@@ -184,6 +184,32 @@ typedef struct PCIIORegion {
+ 
+ #define PCI_COMMAND_RESERVED_MASK_HI (PCI_COMMAND_RESERVED >> 8)
+ 
++struct pci_config_header {
++    uint16_t vendor_id;
++    uint16_t device_id;
++    uint16_t command;
++    uint16_t status;
++    uint8_t  revision;
++    uint8_t  api;
++    uint8_t  subclass;
++    uint8_t  class;
++    uint8_t  cache_line_size; /* Units of 32 bit words */
++    uint8_t  latency_timer; /* In units of bus cycles */
++    uint8_t  header_type; /* Should be 0 */
++    uint8_t  bist; /* Built in self test */
++    uint32_t base_address_regs[6];
++    uint32_t reserved1;
++    uint16_t subsystem_vendor_id;
++    uint16_t subsystem_id;
++    uint32_t rom_addr;
++    uint32_t reserved3;
++    uint32_t reserved4;
++    uint8_t  interrupt_line;
++    uint8_t  interrupt_pin;
++    uint8_t  min_gnt;
++    uint8_t  max_lat;
++};
++
+ struct PCIDevice {
+     /* PCI config space */
+     uint8_t config[4096];
+diff --git a/hw/usb-uhci.c b/hw/usb-uhci.c
+index a684935..72fd34d 100644
+--- a/hw/usb-uhci.c
++++ b/hw/usb-uhci.c
+@@ -1077,24 +1077,40 @@ static void uhci_map(PCIDevice *pci_dev, int region_num,
+     register_ioport_read(addr, 32, 1, uhci_ioport_readb, s);
+ }
+ 
++static void init_pci_config_space(UHCIState *s, uint16_t device_id)
++{
++    uint8_t *pci_conf_raw;
++    struct pci_config_header *pci_conf;
++
++    pci_conf_raw = s->dev.config;
++    pci_conf = (struct pci_config_header *)pci_conf_raw;
++
++    pci_conf->vendor_id = 0x8086;
++    pci_conf->device_id = device_id;
++    pci_conf->revision = 1;
++    pci_conf->api = 0;
++    pci_conf->subclass = 3;
++    pci_conf->class = 0xc;
++    pci_conf->header_type = 0;
++    pci_conf->interrupt_pin = 4;
++
++    /* The release number isn't covered by the usual PCI header, so
++       just do it with a byte write. */
++    pci_conf_raw[0x60] = 0x10;
++}
++
+ void usb_uhci_piix3_init(PCIBus *bus, int devfn)
+ {
+     UHCIState *s;
+-    uint8_t *pci_conf;
++    uint8_t *pci_conf_raw;
++    struct pci_config_header *pci_conf;
+     int i;
+ 
+     s = (UHCIState *)pci_register_device(bus,
+                                         "USB-UHCI", sizeof(UHCIState),
+                                         devfn, NULL, NULL);
+-    pci_conf = s->dev.config;
+-    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_INTEL);
+-    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_INTEL_82371SB_2);
+-    pci_conf[0x08] = 0x01; // revision number
+-    pci_conf[0x09] = 0x00;
+-    pci_config_set_class(pci_conf, PCI_CLASS_SERIAL_USB);
+-    pci_conf[0x0e] = 0x00; // header_type
+-    pci_conf[0x3d] = 4; // interrupt pin 3
+-    pci_conf[0x60] = 0x10; // release number
++
++    init_pci_config_space(s, 0x7020);
+ 
+     for(i = 0; i < NB_PORTS; i++) {
+         qemu_register_usb_port(&s->ports[i].port, s, i, uhci_attach);
+diff --git a/hw/xen_platform.c b/hw/xen_platform.c
+index 5b8967a..c26203e 100644
+--- a/hw/xen_platform.c
++++ b/hw/xen_platform.c
+@@ -380,32 +380,6 @@ static void platform_mmio_map(PCIDevice *d, int region_num,
+     cpu_register_physical_memory(addr, 0x1000000, mmio_io_addr);
+ }
+ 
+-struct pci_config_header {
+-    uint16_t vendor_id;
+-    uint16_t device_id;
+-    uint16_t command;
+-    uint16_t status;
+-    uint8_t  revision;
+-    uint8_t  api;
+-    uint8_t  subclass;
+-    uint8_t  class;
+-    uint8_t  cache_line_size; /* Units of 32 bit words */
+-    uint8_t  latency_timer; /* In units of bus cycles */
+-    uint8_t  header_type; /* Should be 0 */
+-    uint8_t  bist; /* Built in self test */
+-    uint32_t base_address_regs[6];
+-    uint32_t reserved1;
+-    uint16_t subsystem_vendor_id;
+-    uint16_t subsystem_id;
+-    uint32_t rom_addr;
+-    uint32_t reserved3;
+-    uint32_t reserved4;
+-    uint8_t  interrupt_line;
+-    uint8_t  interrupt_pin;
+-    uint8_t  min_gnt;
+-    uint8_t  max_lat;
+-};
+-
+ static void xen_pci_save(QEMUFile *f, void *opaque)
+ {
+     PCIXenPlatformState *d = opaque;

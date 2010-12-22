@@ -1,0 +1,70 @@
+diff -r 49ab480a75d6 hw/ide.c
+--- a/hw/ide.c	Fri Nov 19 16:16:18 2010 +0000
++++ b/hw/ide.c	Fri Nov 19 16:16:54 2010 +0000
+@@ -2017,7 +2017,11 @@ static void ide_atapi_cmd(IDEState *s)
+         break;
+     case GPCMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
+         if (bdrv_is_inserted(s->bs)) {
+-            bdrv_set_locked(s->bs, packet[4] & 1);
++            int locked = packet[4] & 1;
++            if (locked != bdrv_is_locked(s->bs)) {
++                bdrv_set_locked(s->bs, locked);
++                xenstore_set_device_locked(s->bs);
++            }
+             ide_atapi_cmd_ok(s);
+         } else {
+             ide_atapi_cmd_error(s, SENSE_NOT_READY,
+diff -r 49ab480a75d6 qemu-xen.h
+--- a/qemu-xen.h	Fri Nov 19 16:16:18 2010 +0000
++++ b/qemu-xen.h	Fri Nov 19 16:16:54 2010 +0000
+@@ -126,6 +126,7 @@ int xenstore_pv_driver_build_blacklisted
+ void xenstore_do_eject(BlockDriverState *bs);
+ int xenstore_find_device(BlockDriverState *bs);
+ void xenstore_dm_finished_startup(void);
++void xenstore_set_device_locked(BlockDriverState *bs);
+ 
+ /* xenfbfront.c */
+ int xenfb_pv_display_init(DisplayState *ds);
+diff -r 49ab480a75d6 xenstore.c
+--- a/xenstore.c	Fri Nov 19 16:16:18 2010 +0000
++++ b/xenstore.c	Fri Nov 19 16:16:54 2010 +0000
+@@ -52,6 +52,39 @@ void xenstore_do_eject(BlockDriverState 
+         xs_write(xsh, XBT_NULL, xenbus_param_paths[i], "eject", strlen("eject"));
+ }
+ 
++void xenstore_set_device_locked(BlockDriverState *bs)
++{
++    int i;
++    size_t len;
++    char *path;
++    char *val;
++
++    i = xenstore_find_device(bs);
++    if (i == -1) {
++	fprintf(stderr, "xenstore_set_device_locked: couldn't find disk.\n");
++	return;
++    }
++    /* not a cdrom device */
++    if (!xenbus_param_paths[i])
++        return;
++    len = strlen(xenbus_param_paths[i]);
++    path = malloc(len + 1);
++    if (!path) {
++        fprintf(stderr, "xenstore_set_device_locked: malloc failed\n");
++        return;
++    }
++    strcpy(path, xenbus_param_paths[i]);
++    path[len - 6] = '\0';
++    strcat(path, "locked");
++
++    val = bs->locked ? "true" : "false";
++
++    if (!xs_write(xsh, XBT_NULL, path, val, strlen(val)))
++        fprintf(stderr, "xenstore_set_device_locked: xs_write for %s fail", path);
++
++    free(path);
++}
++ 
+ #define UWAIT_MAX (30*1000000) /* thirty seconds */
+ #define UWAIT     (100000)     /* 1/10th second  */
+ 

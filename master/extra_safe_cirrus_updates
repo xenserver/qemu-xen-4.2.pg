@@ -1,0 +1,17 @@
+diff -r 9a7cf54e9960 hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c	Mon Aug 03 11:38:38 2009 +0100
++++ b/hw/cirrus_vga.c	Mon Aug 03 11:39:13 2009 +0100
+@@ -854,13 +854,9 @@
+ 
+     s->gr[0x31] &=
+ 	~(CIRRUS_BLT_START | CIRRUS_BLT_BUSY | CIRRUS_BLT_FIFOUSED);
+-    need_update = s->cirrus_srcptr != &s->cirrus_bltbuf[0]
+-        || s->cirrus_srcptr_end != &s->cirrus_bltbuf[0];
+     s->cirrus_srcptr = &s->cirrus_bltbuf[0];
+     s->cirrus_srcptr_end = &s->cirrus_bltbuf[0];
+     s->cirrus_srccounter = 0;
+-    if (!need_update)
+-        return;
+     cirrus_update_memory_access(s);
+ }
+ 

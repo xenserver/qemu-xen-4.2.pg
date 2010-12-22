@@ -1,0 +1,168 @@
+diff -r d2351b5ec7c9 hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Wed Dec 22 14:16:56 2010 +0000
++++ b/hw/piix4acpi.c	Wed Dec 22 14:17:33 2010 +0000
+@@ -33,6 +33,7 @@
+ 
+ #include <xen/hvm/ioreq.h>
+ #include <xen/hvm/params.h>
++#include <xen/hvm/save.h>
+ 
+ #define PIIX4ACPI_LOG_ERROR 0
+ #define PIIX4ACPI_LOG_INFO 1
+@@ -68,6 +69,8 @@
+ /* The bit in GPE0_STS/EN to notify the pci hotplug event */
+ #define ACPI_PHP_GPE_BIT 3
+ 
++#define RTC_EN            (1 << 10)
++
+ #define NR_PHP_SLOT_REG (NR_PCI_DEVFN/2)
+ #define DEVFN_TO_PHP_SLOT_REG(devfn) (devfn >> 1)
+ #define PHP_SLOT_REG_TO_DEVFN(reg, hilo) ((reg << 1) | hilo)
+@@ -183,6 +186,138 @@ static int piix4acpi_load(QEMUFile *f, v
+     return 0;
+ }
+ 
++static inline int unbcd(int coded, int val)
++{
++    if (!coded) 
++        return val;
++    else
++        return ((val >> 4) * 10) + (val & 0x0f);
++}
++
++static void acpi_s4(void)
++{
++    ssize_t rec_len;
++    void *buf = NULL;
++    struct hvm_save_descriptor *d;
++    struct hvm_hw_pmtimer *pt;    
++    struct hvm_hw_rtc *rtc;
++    int wait = -1;
++    int wake_enabled = 0;
++
++    fprintf(stderr, "ACPI: entering S4\n");
++
++    xc_domain_pause(xc_handle, domid);
++
++    /* Extract the HVM state from Xen */
++    rec_len = xc_domain_hvm_getcontext(xc_handle, domid, 0, 0);
++    if (rec_len < 0) {
++        fprintf(stderr, "Can't get HVM state length\n");
++        goto no_hvm_state;
++    }
++    if ((buf = malloc(rec_len)) == NULL) {
++        fprintf(stderr, "Can't allocate HVM state buffer\n");
++        goto no_hvm_state;
++    }
++    if ((rec_len = xc_domain_hvm_getcontext(xc_handle, domid, buf, 
++                                            rec_len)) == -1) {
++        fprintf(stderr, "Can't get HVM state\n");
++        goto no_hvm_state;
++    }
++    
++    for (d = buf;
++         ((void *)d < (buf + rec_len)) && d->typecode != HVM_SAVE_CODE(END);
++         d = (void *)d + sizeof (*d) + d->length) {
++        switch (d->typecode) {
++            
++        case HVM_SAVE_CODE(PMTIMER):
++            pt = (struct hvm_hw_pmtimer *)(d + 1);
++            wake_enabled = !!(pt->pm1a_en & RTC_EN);
++            break;
++            
++        case HVM_SAVE_CODE(RTC):
++            rtc = (struct hvm_hw_rtc *)(d + 1);
++            if (rtc->cmos_data[0xB] & 0x20) { /* Alarm interrupt enabled */
++                unsigned int now, alarm, ch, cm, cs, h, m, s, pm, bcd;
++
++                bcd = !(rtc->cmos_data[0xB] & 0x04);
++
++                cs = unbcd(bcd, rtc->cmos_data[0x0]);  /* Clock secs */
++                cm = unbcd(bcd, rtc->cmos_data[0x2]);  /* Clock minutes */
++                ch = unbcd(bcd, rtc->cmos_data[0x4] & 0x7f);  /* Clock hours */
++                if (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
++                    && (rtc->cmos_data[0x4] & 0x80)) /* PM */
++                    ch += 12;
++                
++                now = cs + cm * 60 + ch * 3600;
++
++                s = rtc->cmos_data[0x1];  /* Alarm secs */
++                m = rtc->cmos_data[0x3];  /* Alarm minutes */
++                h = rtc->cmos_data[0x5];  /* Alarm hours */
++                pm = (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
++                      && (rtc->cmos_data[0x5] & 0x80)) ? 43200 : 0; /* PM */
++
++                alarm = 0;
++                /* Add alarm h/m/s.  If an entry is wildcarded (>= 0xc0), 
++                 * use the one from the current time. */
++                if (s < 0xc0) alarm += unbcd(bcd, s); 
++                else alarm += cs;
++                if (m < 0xc0) alarm += unbcd(bcd, m) * 60;
++                else alarm += cm * 60;
++                if (h < 0xc0) alarm += unbcd(bcd, h & 0x7f) * 3600 + pm;
++                else alarm += ch * 3600;
++
++                wait = (int) alarm - (int) now; 
++                while (wait < 0) wait += 86400;
++
++                /* Handle wildcarded h/m/s entries */
++                if (h >= 0xc0) { 
++                    while (wait > 3600) wait -= 3600;
++                    if (m >= 0xc0) {
++                        while (wait > 60) wait -= 60;
++                        if (s >= 0xc0)
++                            wait = 0;
++                    } else if (s >= 0xc0 && wait > cs)
++                        wait -= cs;
++                } else {
++                    if (m >= 0xc0 && wait > cm * 60)
++                        wait -= cm * 60;
++                    if (s >= 0xc0 && wait > cs)
++                        wait -= cs;
++                }
++
++                fprintf(stderr, "S4: RTC now %02i:%02i:%02i, "
++                        "alarm %02i:%02i:%02i (+%i secs)\n", 
++                        ch, cm, cs,
++                        (h < 0xc0) ? unbcd(bcd, h & 0x7f) : -1,
++                        (m < 0xc0) ? unbcd(bcd, m) : -1,
++                        (s < 0xc0) ? unbcd(bcd, s) : -1, wait);
++            }
++            break;
++
++        default:
++            break;
++        }
++    } 
++    
++ no_hvm_state:
++    free(buf);
++
++    if (!wake_enabled) {
++        fprintf(stderr, "S4: RTC wake not enabled: halting\n");
++    } else if (wait < 0) {
++        fprintf(stderr, "S4: RTC alarm not set: halting\n");
++    } else {
++        sleep(wait);
++        fprintf(stderr, "S4: RTC alarm fired: rebooting\n");
++        xc_domain_unpause(xc_handle, domid);
++        qemu_system_reset_request();
++        return;
++    }
++
++    xc_domain_unpause(xc_handle, domid);
++    qemu_system_shutdown_request();
++}
++
+ static void acpiPm1Control_writeb(void *opaque, uint32_t addr, uint32_t val)
+ {
+     PCIAcpiState *s = opaque;
+@@ -211,6 +346,8 @@ static void acpi_shutdown(uint32_t val)
+         xc_set_hvm_param(xc_handle, domid, HVM_PARAM_ACPI_S_STATE, 3);
+         break;
+     case SLP_TYP_S4_V0:
++        acpi_s4();
++        break;
+     case SLP_TYP_S5_V0:
+     case SLP_TYP_S5_V1:
+         qemu_system_shutdown_request();

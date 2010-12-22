@@ -1,0 +1,388 @@
+diff -r 71cfb59e137f hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Wed Dec 22 14:17:33 2010 +0000
++++ b/hw/piix4acpi.c	Wed Dec 22 14:18:23 2010 +0000
+@@ -194,21 +194,78 @@ static inline int unbcd(int coded, int v
+         return ((val >> 4) * 10) + (val & 0x0f);
+ }
+ 
+-static void acpi_s4(void)
++static int calculate_wait(struct hvm_hw_rtc *rtc)
++{
++    unsigned int now, alarm, ch, cm, cs, h, m, s, pm, bcd;
++    int wait = -1;
++
++    if (~rtc->cmos_data[0xB] & 0x20) /* Alarm interrupt not enabled */
++        goto done;
++
++    bcd = !(rtc->cmos_data[0xB] & 0x04);
++
++    cs = unbcd(bcd, rtc->cmos_data[0x0]);  /* Clock secs */
++    cm = unbcd(bcd, rtc->cmos_data[0x2]);  /* Clock minutes */
++    ch = unbcd(bcd, rtc->cmos_data[0x4] & 0x7f);  /* Clock hours */
++    if (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
++        && (rtc->cmos_data[0x4] & 0x80)) /* PM */
++        ch += 12;
++    
++    now = cs + cm * 60 + ch * 3600;
++
++    s = rtc->cmos_data[0x1];  /* Alarm secs */
++    m = rtc->cmos_data[0x3];  /* Alarm minutes */
++    h = rtc->cmos_data[0x5];  /* Alarm hours */
++    pm = (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
++            && (rtc->cmos_data[0x5] & 0x80)) ? 43200 : 0; /* PM */
++
++    alarm = 0;
++    /* Add alarm h/m/s.  If an entry is wildcarded (>= 0xc0), 
++        * use the one from the current time. */
++    if (s < 0xc0) alarm += unbcd(bcd, s); 
++    else alarm += cs;
++    if (m < 0xc0) alarm += unbcd(bcd, m) * 60;
++    else alarm += cm * 60;
++    if (h < 0xc0) alarm += unbcd(bcd, h & 0x7f) * 3600 + pm;
++    else alarm += ch * 3600;
++
++    wait = (int) alarm - (int) now; 
++    while (wait < 0) wait += 86400;
++
++    /* Handle wildcarded h/m/s entries */
++    if (h >= 0xc0) { 
++        while (wait > 3600) wait -= 3600;
++        if (m >= 0xc0) {
++            while (wait > 60) wait -= 60;
++            if (s >= 0xc0)
++                wait = 0;
++        } else if (s >= 0xc0 && wait > cs)
++            wait -= cs;
++    } else {
++        if (m >= 0xc0 && wait > cm * 60)
++            wait -= cm * 60;
++        if (s >= 0xc0 && wait > cs)
++            wait -= cs;
++    }
++
++    fprintf(stderr, "RTC now %02i:%02i:%02i, "
++            "alarm %02i:%02i:%02i (+%i secs)\n", 
++            ch, cm, cs,
++            (h < 0xc0) ? unbcd(bcd, h & 0x7f) : -1,
++            (m < 0xc0) ? unbcd(bcd, m) : -1,
++            (s < 0xc0) ? unbcd(bcd, s) : -1,
++            wait);
++
++done:
++    return wait;
++}
++
++static int
++get_hvm_state(void **bufp, size_t *lenp)
+ {
+     ssize_t rec_len;
+     void *buf = NULL;
+-    struct hvm_save_descriptor *d;
+-    struct hvm_hw_pmtimer *pt;    
+-    struct hvm_hw_rtc *rtc;
+-    int wait = -1;
+-    int wake_enabled = 0;
+ 
+-    fprintf(stderr, "ACPI: entering S4\n");
+-
+-    xc_domain_pause(xc_handle, domid);
+-
+-    /* Extract the HVM state from Xen */
+     rec_len = xc_domain_hvm_getcontext(xc_handle, domid, 0, 0);
+     if (rec_len < 0) {
+         fprintf(stderr, "Can't get HVM state length\n");
+@@ -223,98 +280,138 @@ static void acpi_s4(void)
+         fprintf(stderr, "Can't get HVM state\n");
+         goto no_hvm_state;
+     }
+-    
+-    for (d = buf;
+-         ((void *)d < (buf + rec_len)) && d->typecode != HVM_SAVE_CODE(END);
+-         d = (void *)d + sizeof (*d) + d->length) {
+-        switch (d->typecode) {
+-            
+-        case HVM_SAVE_CODE(PMTIMER):
+-            pt = (struct hvm_hw_pmtimer *)(d + 1);
+-            wake_enabled = !!(pt->pm1a_en & RTC_EN);
+-            break;
+-            
+-        case HVM_SAVE_CODE(RTC):
+-            rtc = (struct hvm_hw_rtc *)(d + 1);
+-            if (rtc->cmos_data[0xB] & 0x20) { /* Alarm interrupt enabled */
+-                unsigned int now, alarm, ch, cm, cs, h, m, s, pm, bcd;
+ 
+-                bcd = !(rtc->cmos_data[0xB] & 0x04);
++    *bufp = buf;
++    *lenp = rec_len;
++    return 0;
+ 
+-                cs = unbcd(bcd, rtc->cmos_data[0x0]);  /* Clock secs */
+-                cm = unbcd(bcd, rtc->cmos_data[0x2]);  /* Clock minutes */
+-                ch = unbcd(bcd, rtc->cmos_data[0x4] & 0x7f);  /* Clock hours */
+-                if (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
+-                    && (rtc->cmos_data[0x4] & 0x80)) /* PM */
+-                    ch += 12;
+-                
+-                now = cs + cm * 60 + ch * 3600;
+-
+-                s = rtc->cmos_data[0x1];  /* Alarm secs */
+-                m = rtc->cmos_data[0x3];  /* Alarm minutes */
+-                h = rtc->cmos_data[0x5];  /* Alarm hours */
+-                pm = (!(rtc->cmos_data[0xB] & 0x02)  /* 12-hour clock */
+-                      && (rtc->cmos_data[0x5] & 0x80)) ? 43200 : 0; /* PM */
+-
+-                alarm = 0;
+-                /* Add alarm h/m/s.  If an entry is wildcarded (>= 0xc0), 
+-                 * use the one from the current time. */
+-                if (s < 0xc0) alarm += unbcd(bcd, s); 
+-                else alarm += cs;
+-                if (m < 0xc0) alarm += unbcd(bcd, m) * 60;
+-                else alarm += cm * 60;
+-                if (h < 0xc0) alarm += unbcd(bcd, h & 0x7f) * 3600 + pm;
+-                else alarm += ch * 3600;
+-
+-                wait = (int) alarm - (int) now; 
+-                while (wait < 0) wait += 86400;
+-
+-                /* Handle wildcarded h/m/s entries */
+-                if (h >= 0xc0) { 
+-                    while (wait > 3600) wait -= 3600;
+-                    if (m >= 0xc0) {
+-                        while (wait > 60) wait -= 60;
+-                        if (s >= 0xc0)
+-                            wait = 0;
+-                    } else if (s >= 0xc0 && wait > cs)
+-                        wait -= cs;
+-                } else {
+-                    if (m >= 0xc0 && wait > cm * 60)
+-                        wait -= cm * 60;
+-                    if (s >= 0xc0 && wait > cs)
+-                        wait -= cs;
+-                }
+-
+-                fprintf(stderr, "S4: RTC now %02i:%02i:%02i, "
+-                        "alarm %02i:%02i:%02i (+%i secs)\n", 
+-                        ch, cm, cs,
+-                        (h < 0xc0) ? unbcd(bcd, h & 0x7f) : -1,
+-                        (m < 0xc0) ? unbcd(bcd, m) : -1,
+-                        (s < 0xc0) ? unbcd(bcd, s) : -1, wait);
+-            }
+-            break;
+-
+-        default:
+-            break;
+-        }
+-    } 
+-    
+  no_hvm_state:
+     free(buf);
++    return -1;
++}
++
++static void acpi_s3(void)
++{
++    void *buf;
++    size_t len;
++    int wait = -1;
++    int wake_enabled = 0;
++
++    fprintf(stderr, "ACPI: entering S3\n");
++
++    xc_domain_pause(xc_handle, domid);
++
++    if (get_hvm_state(&buf, &len) == 0) {
++        struct hvm_save_descriptor *d;
++        struct hvm_hw_pmtimer *pt;    
++        struct hvm_hw_rtc *rtc;
++        
++        for (d = buf;
++             ((void *)d < (buf + len)) && d->typecode != HVM_SAVE_CODE(END);
++             d = (void *)d + sizeof (*d) + d->length) {
++            switch (d->typecode) {
++                
++            case HVM_SAVE_CODE(PMTIMER):
++                pt = (struct hvm_hw_pmtimer *)(d + 1);
++                wake_enabled = !!(pt->pm1a_en & RTC_EN);
++                break;
++                
++            case HVM_SAVE_CODE(RTC):
++                rtc = (struct hvm_hw_rtc *)(d + 1);
++                wait = calculate_wait(rtc);
++                break;
++
++            default:
++                break;
++            }
++        }
++    }
++
++    s3_shutdown_flag = 1;
++    qemu_system_reset();
++    s3_shutdown_flag = 0;
++
++    cmos_set_s3_resume();
++
++    xc_set_hvm_param(xc_handle, domid, HVM_PARAM_ACPI_S_STATE, 3);
+ 
+     if (!wake_enabled) {
++        fprintf(stderr, "S3: RTC wake not enabled\n");
++        goto done;
++    } else if (wait < 0) {
++        fprintf(stderr, "S3: RTC alarm not set\n");
++        goto done;
++    }
++
++    sleep(wait);
++
++    fprintf(stderr, "S3: RTC alarm fired: waking up\n");
++    xc_set_hvm_param(xc_handle, domid, HVM_PARAM_ACPI_S_STATE, 0);
++
++done:
++    xc_domain_unpause(xc_handle, domid);
++}
++
++static void acpi_s4(void)
++{
++    void *buf;
++    size_t len;
++    int wait = -1;
++    int wake_enabled = 0;
++
++    fprintf(stderr, "ACPI: entering S4\n");
++
++    xc_domain_pause(xc_handle, domid);
++
++    if (get_hvm_state(&buf, &len) == 0) {
++        struct hvm_save_descriptor *d;
++        struct hvm_hw_pmtimer *pt;    
++        struct hvm_hw_rtc *rtc;
++        
++        for (d = buf;
++             ((void *)d < (buf + len)) && d->typecode != HVM_SAVE_CODE(END);
++             d = (void *)d + sizeof (*d) + d->length) {
++            switch (d->typecode) {
++                
++            case HVM_SAVE_CODE(PMTIMER):
++                pt = (struct hvm_hw_pmtimer *)(d + 1);
++                wake_enabled = !!(pt->pm1a_en & RTC_EN);
++                break;
++                
++            case HVM_SAVE_CODE(RTC):
++                rtc = (struct hvm_hw_rtc *)(d + 1);
++                wait = calculate_wait(rtc);
++                break;
++
++            default:
++                break;
++            }
++        }
++    }
++    
++    if (!wake_enabled) {
+         fprintf(stderr, "S4: RTC wake not enabled: halting\n");
++        goto halt;
+     } else if (wait < 0) {
+         fprintf(stderr, "S4: RTC alarm not set: halting\n");
+-    } else {
+-        sleep(wait);
+-        fprintf(stderr, "S4: RTC alarm fired: rebooting\n");
+-        xc_domain_unpause(xc_handle, domid);
+-        qemu_system_reset_request();
+-        return;
++        goto halt;
+     }
+ 
++    sleep(wait);
++
++    fprintf(stderr, "S4: RTC alarm fired: rebooting\n");
+     xc_domain_unpause(xc_handle, domid);
++    qemu_system_reset_request();
++    return;
++
++halt:
++    xc_domain_unpause(xc_handle, domid);
++    qemu_system_shutdown_request();
++}
++
++static void acpi_s5(void)
++{
++    fprintf(stderr, "ACPI: entering S5\n");
+     qemu_system_shutdown_request();
+ }
+ 
+@@ -339,18 +436,14 @@ static void acpi_shutdown(uint32_t val)
+     switch (val & SLP_TYP_Sx) {
+     case SLP_TYP_S3_V0:
+     case SLP_TYP_S3_V1:
+-        s3_shutdown_flag = 1;
+-        qemu_system_reset();
+-        s3_shutdown_flag = 0;
+-        cmos_set_s3_resume();
+-        xc_set_hvm_param(xc_handle, domid, HVM_PARAM_ACPI_S_STATE, 3);
++        acpi_s3();
+         break;
+     case SLP_TYP_S4_V0:
+         acpi_s4();
+         break;
+     case SLP_TYP_S5_V0:
+     case SLP_TYP_S5_V1:
+-        qemu_system_shutdown_request();
++        acpi_s5();
+         break;
+     default:
+         break;
+diff -r 71cfb59e137f vl.c
+--- a/vl.c	Wed Dec 22 14:17:33 2010 +0000
++++ b/vl.c	Wed Dec 22 14:18:23 2010 +0000
+@@ -3672,8 +3672,10 @@ void qemu_system_reset(void)
+ void qemu_system_reset_request(void)
+ {
+     if (no_reboot) {
++        fprintf(stderr, "requesting shutdown\n");
+         shutdown_requested = 1;
+     } else {
++        fprintf(stderr, "requesting reset\n");
+         reset_requested = 1;
+     }
+     if (cpu_single_env)
+@@ -3683,6 +3685,7 @@ void qemu_system_reset_request(void)
+ void qemu_system_shutdown_request(void)
+ {
+     shutdown_requested = 1;
++    fprintf(stderr, "requesting shutdown\n");
+     if (cpu_single_env)
+         cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+ }
+@@ -3690,6 +3693,7 @@ void qemu_system_shutdown_request(void)
+ void qemu_system_powerdown_request(void)
+ {
+     powerdown_requested = 1;
++    fprintf(stderr, "requesting powerdown\n");
+     if (cpu_single_env)
+         cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+ }
+@@ -3904,6 +3908,7 @@ int main_loop(void)
+             cur_cpu = env;
+ 
+             if (shutdown_requested) {
++                fprintf(stderr, "shutting down\n");
+                 ret = EXCP_INTERRUPT;
+                 if (no_shutdown) {
+                     vm_stop(0);
+@@ -3913,13 +3918,15 @@ int main_loop(void)
+                     break;
+             }
+             if (reset_requested) {
++                fprintf(stderr, "resetting\n");
+                 reset_requested = 0;
+                 qemu_system_reset();
+                 ret = EXCP_INTERRUPT;
+             }
+             if (powerdown_requested) {
++                fprintf(stderr, "powering down\n");
+                 powerdown_requested = 0;
+-		qemu_system_powerdown();
++                qemu_system_powerdown();
+                 ret = EXCP_INTERRUPT;
+             }
+             if (unlikely(ret == EXCP_DEBUG)) {

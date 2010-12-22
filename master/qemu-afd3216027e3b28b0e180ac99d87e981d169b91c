@@ -1,0 +1,35 @@
+
+commit afd3216027e3b28b0e180ac99d87e981d169b91c
+Author: Stefan Weil <weil@mail.berlios.de>
+Date:   Sun May 24 22:33:34 2009 +0200
+
+    VNC: Fix memory allocation (wrong structure size).
+    
+    Pointer vs addresses a VncDisplay structure,
+    so it is sufficient to allocate sizeof(VncDisplay)
+    or sizeof(*vs) bytes instead of the much larger
+    sizeof(VncState).
+    
+    Maybe the misleading name should be fixed, too:
+    the code contains many places where vs is used,
+    sometimes it is a VncState *, sometimes it is a
+    VncDisplay *. vd would be a better name.
+    
+    Signed-off-by: Stefan Weil <weil@mail.berlios.de>
+    Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
+
+diff --git a/vnc.c b/vnc.c
+index 3f5d622..41defc2 100644
+--- a/vnc.c
++++ b/vnc.c
+@@ -2033,9 +2033,8 @@ static void vnc_listen_read(void *opaque)
+ 
+ void vnc_display_init(DisplayState *ds)
+ {
+-    VncDisplay *vs;
++    VncDisplay *vs = qemu_mallocz(sizeof(*vs));
+ 
+-    vs = qemu_mallocz(sizeof(VncState));
+     dcl = qemu_mallocz(sizeof(DisplayChangeListener));
+ 
+     ds->opaque = vs;

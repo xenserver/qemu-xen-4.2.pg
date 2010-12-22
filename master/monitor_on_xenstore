@@ -1,0 +1,39 @@
+diff -r 0b03e36f7b34 qemu-xen.h
+--- a/qemu-xen.h	Mon Jun 15 16:45:09 2009 +0100
++++ b/qemu-xen.h	Mon Jun 15 16:45:41 2009 +0100
+@@ -72,6 +72,8 @@
+ void xenstore_write_vncport(int vnc_display);
+ void xenstore_read_vncpasswd(int domid, char *pwbuf, size_t pwbuflen);
+ void xenstore_write_vslots(char *vslots);
++int store_dev_info(const char *devName, int domid,
++                   CharDriverState *cState, const char *storeString);
+ 
+ int xenstore_domain_has_devtype_danger(struct xs_handle *handle,
+                                 const char *devtype);
+diff -r 0b03e36f7b34 vl.c
+--- a/vl.c	Mon Jun 15 16:45:09 2009 +0100
++++ b/vl.c	Mon Jun 15 16:45:41 2009 +0100
+@@ -5910,8 +5910,10 @@
+     text_consoles_set_display(display_state);
+     qemu_chr_initial_reset();
+ 
+-    if (monitor_device && monitor_hd)
++    if (monitor_device && monitor_hd) {
+         monitor_init(monitor_hd, !nographic);
++        store_dev_info(monitor_device, domid, monitor_hd, "/monitor");
++    }
+ 
+     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
+         const char *devname = serial_devices[i];
+diff -r 0b03e36f7b34 xenstore.c
+--- a/xenstore.c	Mon Jun 15 16:45:09 2009 +0100
++++ b/xenstore.c	Mon Jun 15 16:45:41 2009 +0100
+@@ -1378,7 +1378,7 @@
+  * The entry is <domain-path><storeString>/tty and the value is the name
+  * of the pty associated with the device.
+  */
+-static int store_dev_info(const char *devName, int domid,
++int store_dev_info(const char *devName, int domid,
+                           CharDriverState *cState, const char *storeString)
+ {
+ #ifdef CONFIG_STUBDOM

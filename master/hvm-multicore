@@ -1,0 +1,70 @@
+diff -r 734102804d58 qemu-xen.h
+--- a/qemu-xen.h	Tue Nov 30 15:04:32 2010 +0000
++++ b/qemu-xen.h	Tue Nov 30 15:04:41 2010 +0000
+@@ -131,6 +131,7 @@ int xenstore_find_device(BlockDriverStat
+ void xenstore_dm_finished_startup(void);
+ void xenstore_set_device_locked(BlockDriverState *bs);
+ void xenstore_set_guest_clipboard(const char *text, size_t len);
++unsigned int xenstore_get_cores_per_socket(int domid);
+ 
+ /* xenfbfront.c */
+ int xenfb_pv_display_init(DisplayState *ds);
+diff -r 734102804d58 vl.c
+--- a/vl.c	Tue Nov 30 15:04:32 2010 +0000
++++ b/vl.c	Tue Nov 30 15:04:41 2010 +0000
+@@ -4744,6 +4744,7 @@ static void termsig_setup(void)
+ }
+ 
+ #endif
++    unsigned int cores_per_socket;
+ 
+ /* 32bit Hamming weight */
+ static unsigned int hweight32(unsigned int w)
+@@ -5901,6 +5902,10 @@ geometry_error:
+     xenstore_parse_domain_config(domid);
+ #endif /* CONFIG_STUBDOM */
+ 
++    cores_per_socket = xenstore_get_cores_per_socket(domid);
++    if (cores_per_socket)
++       xc_domain_set_cores_per_socket(xc_handle, domid, cores_per_socket);
++
+     /* we always create the cdrom drive, even if no disk is there */
+ 
+ #ifndef CONFIG_DM
+diff -r 734102804d58 xenstore.c
+--- a/xenstore.c	Tue Nov 30 15:04:32 2010 +0000
++++ b/xenstore.c	Tue Nov 30 15:04:41 2010 +0000
+@@ -1832,6 +1832,33 @@ void xenstore_store_serial_port_info(int
+         store_dev_info(devname, domid, chr, "/console");
+ }
+ 
++unsigned int
++xenstore_get_cores_per_socket(int domid)
++{
++    char *buf = NULL, *path = NULL, *s;
++    unsigned int cores_per_socket = 0;
++
++    path = xs_get_domain_path(xsh, domid);
++    if (path == NULL) {
++        fprintf(logfile, "xs_get_domain_path(%d): error\n", domid);
++        goto out;
++    }
++    pasprintf(&buf, "%s/platform/cores-per-socket", path);
++
++    s = xs_read(xsh, XBT_NULL, buf, NULL);
++    if (s) {
++	if (sscanf(s, "%d", &cores_per_socket) != 1)
++	    cores_per_socket = 0;
++	free(s);
++    }
++
++  out:
++    free(path);
++    free(buf);
++    return cores_per_socket;
++}
++
++
+ void xenstore_set_guest_clipboard(const char *text, size_t len)
+ {
+     char *dup;

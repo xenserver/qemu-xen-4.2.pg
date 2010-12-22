@@ -1,0 +1,11 @@
+diff -r 9fc064c70d33 hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c	Tue Nov 24 12:56:36 2009 +0000
++++ b/hw/cirrus_vga.c	Tue Nov 24 12:57:24 2009 +0000
+@@ -3365,6 +3365,7 @@
+     pci_conf[0x2d] = 0x58;
+     pci_conf[0x2e] = 0x01; /* subsystem device */
+     pci_conf[0x2f] = 0x00;
++    pci_conf[0x3d] = 1; // interrupt pin 0
+ 
+     if (vga_ram_size != 4*1024*1024) {
+         fprintf(stderr, "The -videoram option does not work with the cirrus vga model. Video ram set to 4M. \n");

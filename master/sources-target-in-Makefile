@@ -1,0 +1,19 @@
+Make sure that mk/Makefile has a sources target
+
+This ensures that the SRPM ends up on the XenServer sources ISO.
+
+
+diff -r 2fe77fb26cb5 mk/Makefile
+--- a/mk/Makefile	Wed Jul 14 15:47:33 2010 +0100
++++ b/mk/Makefile	Wed Jul 14 15:58:51 2010 +0100
+@@ -74,3 +74,10 @@
+ 	@touch $@
+ 
+ $(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
++	( echo "$(COMPONENT) gpl file $(RPM_SRPMSDIR)/xen-device-model-$(IOEMU_VERSION)-$(IOEMU_RELEASE).src.rpm" ; \
++        ) >$@
++
++.PHONY: sources
++sources: $(MY_SOURCES)/MANIFEST
++	@ :
++

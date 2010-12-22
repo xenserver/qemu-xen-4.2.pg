@@ -1,0 +1,11 @@
+diff -r 4d7e4be0a9a8 hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c	Tue Nov 30 14:22:01 2010 +0000
++++ b/hw/cirrus_vga.c	Tue Nov 30 14:22:40 2010 +0000
+@@ -1355,6 +1355,7 @@ cirrus_hook_write_sr(CirrusVGAState * s,
+ 	s->hw_cursor_y = (reg_value << 3) | (reg_index >> 5);
+ 	break;
+     case 0x07:			// Extended Sequencer Mode
++        cirrus_update_memory_access(s);
+     case 0x08:			// EEPROM Control
+     case 0x09:			// Scratch Register 0
+     case 0x0a:			// Scratch Register 1

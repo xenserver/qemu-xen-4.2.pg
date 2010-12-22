@@ -1,0 +1,15 @@
+diff -r c2ff27ed5f65 hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c	Thu Jun 03 16:52:30 2010 +0100
++++ b/hw/cirrus_vga.c	Fri Jun 04 13:07:36 2010 +0100
+@@ -1516,9 +1516,11 @@
+ #endif
+     switch (reg_index) {
+     case 0x00:			// Standard VGA, BGCOLOR 0x000000ff
++	s->gr[reg_index] = reg_value & gr_mask[reg_index];
+ 	s->cirrus_shadow_gr0 = reg_value;
+ 	return CIRRUS_HOOK_NOT_HANDLED;
+     case 0x01:			// Standard VGA, FGCOLOR 0x000000ff
++	s->gr[reg_index] = reg_value & gr_mask[reg_index];
+ 	s->cirrus_shadow_gr1 = reg_value;
+ 	return CIRRUS_HOOK_NOT_HANDLED;
+     case 0x02:			// Standard VGA

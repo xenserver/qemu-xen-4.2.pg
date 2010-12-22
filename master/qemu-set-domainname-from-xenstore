@@ -1,0 +1,55 @@
+diff -r f9565469c574 i386-dm/helper2.c
+--- a/i386-dm/helper2.c	Fri Nov 19 16:18:48 2010 +0000
++++ b/i386-dm/helper2.c	Fri Nov 19 16:19:19 2010 +0000
+@@ -85,7 +85,7 @@ uint32_t vcpu_avail[(HVM_MAX_VCPUS + 31)
+ 
+ int xc_handle = -1;
+ 
+-char domain_name[64] = "Xen-no-name";
++char domain_name[DOMAIN_NAME_LEN] = { 'H','V', 'M', 'X', 'E', 'N', '-'};
+ 
+ int domid_backend = 0;
+   /* 0 for now.  If we ever have non-dom0 backend domains, this
+diff -r f9565469c574 xen-config-host.h
+--- a/xen-config-host.h	Fri Nov 19 16:18:48 2010 +0000
++++ b/xen-config-host.h	Fri Nov 19 16:19:19 2010 +0000
+@@ -10,7 +10,8 @@
+ #define CONFIG_DM
+ #define CONFIG_XEN
+ 
+-extern char domain_name[64];
++#define DOMAIN_NAME_LEN 128
++extern char domain_name[DOMAIN_NAME_LEN];
+ extern int domid, domid_backend;
+ 
+ #include <errno.h>
+diff -r f9565469c574 xenstore.c
+--- a/xenstore.c	Fri Nov 19 16:18:48 2010 +0000
++++ b/xenstore.c	Fri Nov 19 16:19:19 2010 +0000
+@@ -430,7 +430,7 @@ void xenstore_parse_domain_config(int hv
+     char **e_danger = NULL;
+     char *buf = NULL;
+     char *fpath = NULL, *bpath = NULL,
+-        *dev = NULL, *params = NULL, *drv = NULL;
++        *dev = NULL, *params = NULL, *drv = NULL, *name = NULL;
+     int i, ret;
+     unsigned int len, num, hd_index, pci_devid = 0;
+     BlockDriverState *bs;
+@@ -457,6 +457,17 @@ void xenstore_parse_domain_config(int hv
+         return;
+     }
+ 
++    name = xenstore_vm_read(domid, "uuid", NULL);
++    if (name) {
++	if (snprintf(domain_name, DOMAIN_NAME_LEN - 1, "HVMXEN-%s",
++		     name) > 0) {
++	    domain_name[DOMAIN_NAME_LEN - 1] = 0;
++            cpu_set_log_syslog(domain_name);
++	    cpu_set_log(0);
++	}
++	free(name);
++    }
++
+     danger_path = xs_get_domain_path(xsh, hvm_domid);
+     if (danger_path == NULL) {
+         fprintf(logfile, "xs_get_domain_path() error\n");

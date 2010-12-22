@@ -1,0 +1,23 @@
+diff -r b522b1ea0292 xenstore.c
+--- a/xenstore.c	Wed Oct 28 15:34:39 2009 +0000
++++ b/xenstore.c	Fri Nov 06 16:14:35 2009 +0000
+@@ -399,15 +399,14 @@
+         return;
+     }
+ 
+-    name = xenstore_vm_read(domid, "uuid", NULL);
+-    if (name) {
+-	if (snprintf(domain_name, DOMAIN_NAME_LEN - 1, "HVMXEN-%s",
+-		     name) > 0) {
++	if (snprintf(domain_name, DOMAIN_NAME_LEN - 1, "HVM%d",
++		         domid) > 0) {
+ 	    domain_name[DOMAIN_NAME_LEN - 1] = 0;
+             cpu_set_log_syslog(domain_name);
+ 	    cpu_set_log(0);
+-	}
+     }
++
++    name = xenstore_vm_read(domid, "uuid", NULL);
+ 
+     /* read the console output filename */
+     serial_c = xs_read(xsh, XBT_NULL, "/local/logconsole/@", NULL);

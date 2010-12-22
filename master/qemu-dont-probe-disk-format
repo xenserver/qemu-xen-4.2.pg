@@ -1,0 +1,12 @@
+diff -r 24d3cc2434c2 block.c
+--- a/block.c	Mon Jun 15 18:23:39 2009 +0100
++++ b/block.c	Mon Jun 15 18:24:34 2009 +0100
+@@ -408,7 +408,7 @@
+         if (!drv)
+             drv = &bdrv_raw;
+     } else if (!drv) {
+-        drv = find_image_format(filename);
++        drv = &bdrv_raw;
+     }
+     if (!drv) {
+         ret = -ENOENT;

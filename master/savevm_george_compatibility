@@ -1,0 +1,71 @@
+diff -r 5794fd7c3563 hw/cirrus_vga.c
+--- a/hw/cirrus_vga.c	Fri Nov 19 12:55:52 2010 +0000
++++ b/hw/cirrus_vga.c	Fri Nov 19 12:55:55 2010 +0000
+@@ -3153,6 +3153,8 @@ static int cirrus_vga_load(QEMUFile *f, 
+         s->vram_gmfn = vga_acc ? s->lfb_addr : VRAM_RESERVED_ADDRESS;
+         xen_vga_populate_vram(s->vram_gmfn, s->vram_size);
+     } else {
++        if (s->lfb_addr)
++            s->vram_gmfn = s->lfb_addr;
+         xen_vga_vram_map(s->vram_gmfn, s->vram_size);
+     }
+     if (version_id < 3 || (!vga_acc && !t))
+diff -r 5794fd7c3563 hw/vga.c
+--- a/hw/vga.c	Fri Nov 19 12:55:52 2010 +0000
++++ b/hw/vga.c	Fri Nov 19 12:55:55 2010 +0000
+@@ -2240,11 +2240,12 @@ static int vga_load(QEMUFile *f, void *o
+     VGAState *s = opaque;
+     int is_vbe, ret;
+     uint32_t vram_size;
++    uint32_t map_addr = 0;
+ #ifdef CONFIG_BOCHS_VBE
+     int i;
+ #endif
+ 
+-    if (version_id > 4)
++    if (version_id > 6)
+         return -EINVAL;
+ 
+     if (s->pci_dev && version_id >= 2) {
+@@ -2295,13 +2296,17 @@ static int vga_load(QEMUFile *f, void *o
+ 	qemu_get_be32s(f, &vram_size);
+ 	if (vram_size != s->vram_size)
+ 	    return -EINVAL;
++        if (version_id == 5) {
++            map_addr = qemu_get_be32(f);
++            qemu_get_be32(f);
++        }
+         if (version_id >= 4) {
+             qemu_get_be64s(f, &s->vram_gmfn);
+-            if (s->vram_gmfn)
+-                xen_vga_vram_map(s->vram_gmfn, s->vram_size);
++            if (s->vram_gmfn || map_addr)
++                xen_vga_vram_map(map_addr ? map_addr : s->vram_gmfn, s->vram_size);
+         }
+         /* Old guest, VRAM is not mapped, we have to restore it ourselves */
+-        if (!s->vram_gmfn) {
++        if (!s->vram_gmfn && !map_addr) {
+             xen_vga_populate_vram(VRAM_RESERVED_ADDRESS, s->vram_size);
+             s->vram_gmfn = VRAM_RESERVED_ADDRESS;
+             qemu_get_buffer(f, s->vram_ptr, s->vram_size); 
+@@ -2606,7 +2611,7 @@ static void vga_init(VGAState *s)
+ {
+     int vga_io_memory;
+ 
+-    register_savevm("vga", 0, 4, vga_save, vga_load, s);
++    register_savevm("vga", 0, 6, vga_save, vga_load, s);
+ 
+     register_ioport_write(0x3c0, 16, 1, vga_ioport_write, s);
+ 
+diff -r 5794fd7c3563 vl.c
+--- a/vl.c	Fri Nov 19 12:55:52 2010 +0000
++++ b/vl.c	Fri Nov 19 12:55:55 2010 +0000
+@@ -5769,6 +5769,8 @@ int main(int argc, char **argv, char **e
+        fprintf(stderr,"Defaulting vram to 4MB\n");
+        vga_ram_size = 4 * 1024 * 1024;
+     }
++    if (!vga_ram_size)
++        vga_ram_size = 8 * 1024 * 1024;
+ 
+     phys_ram_size = (machine->ram_require + vga_ram_size) & ~RAMSIZE_FIXED;
+ 

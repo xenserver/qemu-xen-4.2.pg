@@ -1,0 +1,234 @@
+diff -r 928eb6643ee3 Rules.mk
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Rules.mk	Wed Dec 22 14:16:36 2010 +0000
+@@ -0,0 +1,29 @@
++INSTALL      = install
++INSTALL_DIR  = $(INSTALL) -d -m0755 -p
++INSTALL_DATA = $(INSTALL) -m0644 -p
++INSTALL_PROG = $(INSTALL) -m0755 -p
++
++CURSES_LIBS = -lncurses
++UTIL_LIBS = -lutil
++SONAME_LDFLAG = -soname
++SHLIB_CFLAGS = -shared
++
++CFLAGS += -D__XEN_TOOLS__
++
++# Enable implicit LFS support *and* explicit LFS names.
++CFLAGS  += $(shell getconf LFS_CFLAGS)
++CFLAGS  += -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
++LDFLAGS += $(shell getconf LFS_LDFLAGS)
++
++CFLAGS += -DNDEBUG
++CFLAGS ?= -O2 -fomit-frame-pointer
++
++# CFLAGS settings from xen.hg/tools/Rules.mk
++CFLAGS += -std=gnu99
++CFLAGS += -mno-tls-direct-seg-refs
++CFLAGS += -Wstrict-prototypes
++CFLAGS += -Wno-unused-value
++CFLAGS += -m32 -march=i686
++CFLAGS += -Wdeclaration-after-statement
++CFLAGS += -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
++
+diff -r 928eb6643ee3 configure
+--- a/configure	Wed Dec 22 14:16:14 2010 +0000
++++ b/configure	Wed Dec 22 14:16:36 2010 +0000
+@@ -809,21 +809,6 @@ else
+     fi
+ fi # -z $sdl
+ 
+-if test "$sdl" = "yes" ; then
+-cat > $TMPC <<EOF
+-#include <SDL.h>
+-#if defined(SDL_VIDEO_DRIVER_X11)
+-#include <X11/XKBlib.h>
+-#else
+-#error No x11 support
+-#endif
+-int main(void) { return 0; }
+-EOF
+-    if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} `$sdl_config --cflags 2> /dev/null` $TMPC `$sdl_config --libs 2> /dev/null` > /dev/null 2>&1 ; then
+-	sdl_x11="yes"
+-    fi
+-fi
+-
+ ##########################################
+ # VNC TLS detection
+ if test "$vnc_tls" = "yes" ; then
+@@ -1512,12 +1497,6 @@ bsd)
+ esac
+ 
+ tools=
+-if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
+-  tools="qemu-img\$(EXESUF) $tools"
+-  if [ "$linux" = "yes" ] ; then
+-      tools="qemu-nbd\$(EXESUF) $tools"
+-  fi
+-fi
+ echo "TOOLS=$tools" >> $config_mak
+ 
+ test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h
+diff -r 928eb6643ee3 i386-dm/hookstarget.mak
+--- a/i386-dm/hookstarget.mak	Wed Dec 22 14:16:14 2010 +0000
++++ b/i386-dm/hookstarget.mak	Wed Dec 22 14:16:36 2010 +0000
+@@ -3,4 +3,3 @@ IOEMU_OS=$(shell uname -s)
+ install-hook:
+ 	$(INSTALL_DIR) "$(DESTDIR)/$(bindir)"
+ 	$(INSTALL_DIR) "$(DESTDIR)/$(configdir)"
+-	$(INSTALL_PROG) $(QEMU_ROOT)/i386-dm/qemu-ifup-$(IOEMU_OS) "$(DESTDIR)/$(configdir)/qemu-ifup"
+diff -r 928eb6643ee3 mk/Makefile
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/mk/Makefile	Wed Dec 22 14:16:36 2010 +0000
+@@ -0,0 +1,76 @@
++USE_BRANDING := yes
++IMPORT_BRANDING := yes
++include $(B_BASE)/common.mk
++include $(B_BASE)/rpmbuild.mk
++
++REPO_NAME= qemu-xen-4.0
++RPM_BUILD_COOKIE= $(MY_OBJ_DIR)/.rpm_build_cookie
++SYNC_COOKIE= $(call hg_sync_dep,$(REPO_NAME))
++REPO_STAMP = $(call pq_req,$(REPO_NAME))
++REPO = $(call hg_sync,$(REPO_NAME))
++
++export XEN_ROOT=$(call pq_loc,xen-4.0)
++
++J_FLAG = 8
++MAKE_CMD= $(MAKE) -j$(J_FLAG) -C $(REPO)
++
++-include $(MY_OBJ_DIR)/version.inc
++$(MY_OBJ_DIR)/version.inc:
++	rm -f $(MY_OBJ_DIR)/version.inc
++	$(call version-makefile) > $@
++	awk -F. '{ print "REPO_VERSION=" $$0; }' \
++		< $(REPO_STAMP) >> $@
++	$(call pq_cset_number,$(REPO_NAME)) >> $@
++	echo IOEMU_VERSION := \$$\(PRODUCT_VERSION\) >> $@
++	echo IOEMU_RELEASE := \$$\(CSET_NUMBER\) >> $@
++
++CHANGELOG_DATE    := $(shell LANG=C date +"%a %b %d %Y")
++CHANGELOG_USER    := $(COMPANY_NAME) <$(COMPANY_WEBSITE)>
++CHANGELOG_HEADER  := * $(CHANGELOG_DATE) $(CHANGELOG_USER) [$(IOEMU_VERSION) $(IOEMU_RELEASE)]
++CHANGELOG_MESSAGE := - Build ioemu.
++
++.PHONY: build
++build: $(RPM_BUILD_COOKIE) $(MY_SOURCES)/MANIFEST $(MY_OUTPUT_DIR)/ioemu.inc
++	@ :
++
++.PHONY: clean
++clean:
++	rm -f $(RPM_BUILD_COOKIE)
++	rm -f $(MY_OBJ_DIR)/version.inc
++	rm -f $(SOURCES)
++	rm -f $(SYNC_COOKIE)
++
++$(MY_OUTPUT_DIR)/ioemu.inc:
++	( echo IOEMU_PKG_NAME := xen-device-model && \
++	  echo IOEMU_PKG_VERSION := $(IOEMU_VERSION)-$(IOEMU_RELEASE) && \
++	  echo IOEMU_PKG_ARCH := i686 && \
++	  echo IOEMU_PKG_FILE := RPMS/i686/xen-device-model-$(IOEMU_VERSION)-$(IOEMU_RELEASE).i686.rpm ) >$@
++
++SOURCES = $(RPM_SOURCESDIR)/xen-device-model-$(IOEMU_VERSION).tar.bz2 \
++	  $(RPM_SOURCESDIR)/xen-device-model-development.patch \
++	  $(RPM_SPECSDIR)/xen-device-model.spec
++
++$(RPM_SOURCESDIR)/xen-device-model-$(IOEMU_VERSION).tar.bz2: $(RPM_SOURCESDIR)/.dirstamp $(call pq_loc,$(REPO_NAME))
++	cd $(call pq_loc,$(REPO_NAME)) && hg archive -X mk -t tbz2 $@
++
++$(RPM_SOURCESDIR)/xen-device-model-development.patch: $(RPM_SOURCESDIR)/.dirstamp $(call pq_loc,$(REPO_NAME))
++	cd $(call pq_loc,$(REPO_NAME)) && hg diff -X mk > $@
++
++$(RPM_SPECSDIR)/xen-device-model.spec: xen-device-model.spec.in $(RPM_SPECSDIR)/.dirstamp
++# Use a temporary file because sed in rhel3 doesn't understand "\n"
++	echo "$(CHANGELOG_HEADER)" > changelog.tmp
++	echo "$(CHANGELOG_MESSAGE)" >> changelog.tmp
++	echo "" >> changelog.tmp
++	sed -e s\,@REPO_VERSION@,$(REPO_VERSION),g \
++	    -e s\,@IOEMU_VERSION@,$(IOEMU_VERSION),g\
++	    -e s\,@IOEMU_RELEASE@,$(IOEMU_RELEASE),g\
++	    -e \\,%changelog,rchangelog.tmp             \
++	    < xen-device-model.spec.in                           \
++	    > $(RPM_SPECSDIR)/xen-device-model.spec
++	-rm changelog.tmp
++
++$(RPM_BUILD_COOKIE): $(RPM_DIRECTORIES) $(SOURCES)
++	$(RPMBUILD) --target i686 -ba $(RPM_SPECSDIR)/xen-device-model.spec
++	@touch $@
++
++$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
+diff -r 928eb6643ee3 mk/xen-device-model.spec.in
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/mk/xen-device-model.spec.in	Wed Dec 22 14:16:36 2010 +0000
+@@ -0,0 +1,39 @@
++Summary: qemu-dm device model
++Name: xen-device-model
++Version: @IOEMU_VERSION@
++Release: @IOEMU_RELEASE@
++License: GPL
++Group: System/Hypervisor
++Source0: xen-device-model-%{version}.tar.bz2
++Patch0: xen-device-model-development.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
++BuildRequires: SDL-devel
++
++%description
++This package contains qemu-dm, the Xen device model.
++%prep
++%setup -q
++%patch0 -p1
++
++%build
++./xen-setup --disable-opengl --disable-vnc-tls --disable-blobs
++%{__make}
++
++%install
++rm -rf $RPM_BUILD_ROOT
++%{__make} install DESTDIR=$RPM_BUILD_ROOT
++mkdir -p $RPM_BUILD_ROOT/var/xen/qemu
++rm -f $RPM_BUILD_ROOT/usr/bin/qemu-img-xen
++rm -f $RPM_BUILD_ROOT/etc/xen/qemu-ifup
++
++%clean
++rm -rf $RPM_BUILD_ROOT
++
++%files
++%defattr(-,root,root,-)
++%doc
++%{_libdir}/xen/bin/qemu-dm
++%{_datadir}/xen/qemu/keymaps
++%dir /var/xen/qemu
++
++%changelog
+diff -r 928eb6643ee3 sdl.c
+--- a/sdl.c	Wed Dec 22 14:16:14 2010 +0000
++++ b/sdl.c	Wed Dec 22 14:16:36 2010 +0000
+@@ -388,7 +388,7 @@ static uint8_t sdl_keyevent_to_keycode(c
+ 
+ #else
+ 
+-#if defined(SDL_VIDEO_DRIVER_X11)
++#if 0
+ #include <X11/XKBlib.h>
+ 
+ static int check_for_evdev(void)
+diff -r 928eb6643ee3 xen-config-host.mak
+--- a/xen-config-host.mak	Wed Dec 22 14:16:14 2010 +0000
++++ b/xen-config-host.mak	Wed Dec 22 14:16:36 2010 +0000
+@@ -1,6 +1,6 @@
+ QEMU_ROOT ?= .
+ XEN_ROOT ?= $(QEMU_ROOT)/../xen-unstable.hg
+-include $(XEN_ROOT)/tools/Rules.mk
++include $(QEMU_ROOT)/Rules.mk
+ 
+ ifdef CONFIG_STUBDOM
+ export TARGET_DIRS=i386-stubdom
+diff -r 928eb6643ee3 xen-config.mak
+--- a/xen-config.mak	Wed Dec 22 14:16:14 2010 +0000
++++ b/xen-config.mak	Wed Dec 22 14:16:36 2010 +0000
+@@ -9,4 +9,4 @@ CONFIG_SOFTMMU=yes
+ 
+ CFLAGS += -I$(QEMU_ROOT)/hw
+ 
+-bindir = ${LIBEXEC}
++bindir = ${prefix}/lib/xen/bin

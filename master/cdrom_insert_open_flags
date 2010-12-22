@@ -1,0 +1,12 @@
+diff -r 024314e6110f xenstore.c
+--- a/xenstore.c	Tue Nov 30 10:29:24 2010 +0000
++++ b/xenstore.c	Tue Nov 30 10:30:17 2010 +0000
+@@ -132,7 +132,7 @@ static void insert_media(void *opaque)
+             else 
+                 format = &bdrv_raw;
+ 
+-            bdrv_open2(bs, media_filename[i], 0, format);
++            bdrv_open2(bs, media_filename[i], BDRV_O_CACHE_WB, format);
+ #ifdef CONFIG_STUBDOM
+             {
+                 char *buf, *backend, *params_path, *params;
