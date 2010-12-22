@@ -1,6 +1,6 @@
-diff -r 1ce267f57601 Makefile.target
---- a/Makefile.target	Wed Dec 22 14:18:43 2010 +0000
-+++ b/Makefile.target	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 Makefile.target
+--- a/Makefile.target	Wed Dec 22 16:12:08 2010 +0000
++++ b/Makefile.target	Wed Dec 22 16:22:10 2010 +0000
 @@ -503,7 +503,7 @@ endif #CONFIG_BSD_USER
  # System emulator target
  ifndef CONFIG_USER_ONLY
@@ -10,9 +10,9 @@ diff -r 1ce267f57601 Makefile.target
  # virtio has to be here due to weird dependency between PCI and virtio-net.
  # need to fix this properly
  OBJS+=virtio.o virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o
-diff -r 1ce267f57601 block-raw-posix.c
---- a/block-raw-posix.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/block-raw-posix.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 block-raw-posix.c
+--- a/block-raw-posix.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/block-raw-posix.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -32,6 +32,7 @@
  #ifdef CONFIG_AIO
  #include "posix-aio-compat.h"
@@ -41,9 +41,9 @@ diff -r 1ce267f57601 block-raw-posix.c
      }
      s->fd = fd;
      s->aligned_buf = NULL;
-diff -r 1ce267f57601 hw/hw.h
---- a/hw/hw.h	Wed Dec 22 14:18:43 2010 +0000
-+++ b/hw/hw.h	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 hw/hw.h
+--- a/hw/hw.h	Wed Dec 22 16:12:08 2010 +0000
++++ b/hw/hw.h	Wed Dec 22 16:22:10 2010 +0000
 @@ -34,6 +34,7 @@ QEMUFile *qemu_fopen_ops(void *opaque, Q
                           QEMUFileCloseFunc *close,
                           QEMUFileRateLimit *rate_limit);
@@ -52,9 +52,9 @@ diff -r 1ce267f57601 hw/hw.h
  QEMUFile *qemu_fopen_socket(int fd);
  QEMUFile *qemu_popen(FILE *popen_file, const char *mode);
  QEMUFile *qemu_popen_cmd(const char *command, const char *mode);
-diff -r 1ce267f57601 hw/piix4acpi.c
---- a/hw/piix4acpi.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/hw/piix4acpi.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/hw/piix4acpi.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -28,6 +28,7 @@
  #include "pci.h"
  #include "sysemu.h"
@@ -63,7 +63,7 @@ diff -r 1ce267f57601 hw/piix4acpi.c
  #include "battery_mgmt.h"
  #include "qemu-log.h"
  
-@@ -915,7 +916,7 @@ void acpi_php_add(int devfn)
+@@ -914,7 +915,7 @@ void acpi_php_add(int devfn)
              sprintf(ret_str, "wrong bdf or vdevfn");
  
          if ( strlen(ret_str) > 0 )
@@ -72,7 +72,7 @@ diff -r 1ce267f57601 hw/piix4acpi.c
  
          return;
      }
-@@ -946,7 +947,7 @@ void acpi_php_add(int devfn)
+@@ -945,7 +946,7 @@ void acpi_php_add(int devfn)
  
      /* tell Control panel which devfn for the new pass-throgh dev */
      sprintf(ret_str, "0x%02x", devfn);
@@ -81,9 +81,9 @@ diff -r 1ce267f57601 hw/piix4acpi.c
  
      /* signal the CP ACPI hot insert done */
      xenstore_record_dm_state("pci-inserted");
-diff -r 1ce267f57601 i386-dm/helper2.c
---- a/i386-dm/helper2.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/i386-dm/helper2.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 i386-dm/helper2.c
+--- a/i386-dm/helper2.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/i386-dm/helper2.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -44,6 +44,7 @@
  #include <signal.h>
  #include <assert.h>
@@ -100,18 +100,7 @@ diff -r 1ce267f57601 i386-dm/helper2.c
  
  //#define DEBUG_MMU
  
-@@ -154,6 +156,10 @@ CPUX86State *cpu_x86_init(const char *cp
-             }
-             ioreq_local_port[i] = rc;
-         }
-+#ifndef CONFIG_STUBDOM
-+        if (xc_evtchn_restrict(xce_handle, domid) < 0)
-+            fprintf(logfile, "xc_evtchn_restrict(): %s\n", strerror(errno));
-+#endif
-     }
- 
-     return env;
-@@ -163,26 +169,19 @@ CPUX86State *cpu_x86_init(const char *cp
+@@ -163,26 +165,19 @@ CPUX86State *cpu_x86_init(const char *cp
  void cpu_reset(CPUX86State *env)
  {
      extern int s3_shutdown_flag;
@@ -146,7 +135,7 @@ diff -r 1ce267f57601 i386-dm/helper2.c
  }
  
  void cpu_x86_close(CPUX86State *env)
-@@ -427,14 +426,11 @@ void timeoffset_get(void)
+@@ -427,14 +422,11 @@ void timeoffset_get(void)
  
  static void cpu_ioreq_timeoffset(CPUState *env, ioreq_t *req)
  {
@@ -162,7 +151,7 @@ diff -r 1ce267f57601 i386-dm/helper2.c
  }
  
  static void __handle_ioreq(CPUState *env, ioreq_t *req)
-@@ -611,19 +607,12 @@ int main_loop(void)
+@@ -611,19 +603,12 @@ int main_loop(void)
  
  void destroy_hvm_domain(void)
  {
@@ -188,9 +177,9 @@ diff -r 1ce267f57601 i386-dm/helper2.c
 +    else
 +        fprintf(logfile, "Issued domain %d poweroff\n", domid);
  }
-diff -r 1ce267f57601 keymaps.c
---- a/keymaps.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/keymaps.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 keymaps.c
+--- a/keymaps.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/keymaps.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -22,6 +22,8 @@
   * THE SOFTWARE.
   */
@@ -222,9 +211,9 @@ diff -r 1ce267f57601 keymaps.c
  	return 0;
      }
      for(;;) {
-diff -r 1ce267f57601 privsep.c
+diff -r 156cde5eb177 privsep.c
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/privsep.c	Wed Dec 22 14:34:42 2010 +0000
++++ b/privsep.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -0,0 +1,1140 @@
 +/* Privilege separation.  Closely based on OpenBSD syslogd's
 + * privsep, which is:
@@ -1366,9 +1355,9 @@ diff -r 1ce267f57601 privsep.c
 +        return NULL;
 +}
 +
-diff -r 1ce267f57601 privsep.h
+diff -r 156cde5eb177 privsep.h
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/privsep.h	Wed Dec 22 14:34:42 2010 +0000
++++ b/privsep.h	Wed Dec 22 16:22:10 2010 +0000
 @@ -0,0 +1,20 @@
 +#ifndef PRIVSEP_H
 +#define PRIVSEP_H
@@ -1390,9 +1379,9 @@ diff -r 1ce267f57601 privsep.h
 +char* privsep_read_dm(char *subpath);
 +
 +#endif
-diff -r 1ce267f57601 qemu-xen.h
---- a/qemu-xen.h	Wed Dec 22 14:18:43 2010 +0000
-+++ b/qemu-xen.h	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 qemu-xen.h
+--- a/qemu-xen.h	Wed Dec 22 16:12:08 2010 +0000
++++ b/qemu-xen.h	Wed Dec 22 16:22:10 2010 +0000
 @@ -69,12 +69,10 @@ void xenstore_parse_domain_config(int do
  int xenstore_parse_disable_pf_config(void);
  int xenstore_fd(void);
@@ -1422,9 +1411,9 @@ diff -r 1ce267f57601 qemu-xen.h
  
  /* xenfbfront.c */
  int xenfb_pv_display_init(DisplayState *ds);
-diff -r 1ce267f57601 savevm.c
---- a/savevm.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/savevm.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 savevm.c
+--- a/savevm.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/savevm.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -317,6 +317,28 @@ fail:
      return NULL;
  }
@@ -1454,9 +1443,9 @@ diff -r 1ce267f57601 savevm.c
  typedef struct QEMUFileBdrv
  {
      BlockDriverState *bs;
-diff -r 1ce267f57601 vl.c
---- a/vl.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/vl.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 vl.c
+--- a/vl.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/vl.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -48,6 +48,7 @@
  #include "hw/xen.h"
  #include <stdlib.h>
@@ -1508,15 +1497,12 @@ diff -r 1ce267f57601 vl.c
  #ifndef _WIN32
  #ifndef CONFIG_DM
      /* must be after terminal init, SDL library changes signal handlers */
-@@ -6246,6 +6255,17 @@ geometry_error:
+@@ -6246,6 +6255,14 @@ geometry_error:
          close(fd);
      }
  
 +#ifdef __linux__
 +    if (!priv) {
-+        if (xc_interface_restrict(xc_handle, domid) < 0)
-+            fprintf(stderr, "xc_interface_restrict(): %s\n", strerror(errno));
-+
 +        xenstore_drop_privileges();
 +
 +        init_privsep();
@@ -1526,9 +1512,9 @@ diff -r 1ce267f57601 vl.c
      main_loop();
      quit_timers();
      net_cleanup();
-diff -r 1ce267f57601 xen-vl-extra.c
---- a/xen-vl-extra.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/xen-vl-extra.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 xen-vl-extra.c
+--- a/xen-vl-extra.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/xen-vl-extra.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -8,6 +8,7 @@
   * there is only one place where this file is included. */
  
@@ -1546,9 +1532,9 @@ diff -r 1ce267f57601 xen-vl-extra.c
      
      /* ??? Should this occur after vm_stop?  */
      qemu_aio_flush();
-diff -r 1ce267f57601 xenstore.c
---- a/xenstore.c	Wed Dec 22 14:18:43 2010 +0000
-+++ b/xenstore.c	Wed Dec 22 14:34:42 2010 +0000
+diff -r 156cde5eb177 xenstore.c
+--- a/xenstore.c	Wed Dec 22 16:12:08 2010 +0000
++++ b/xenstore.c	Wed Dec 22 16:22:10 2010 +0000
 @@ -14,6 +14,7 @@
  #include "block_int.h"
  #include <unistd.h>
