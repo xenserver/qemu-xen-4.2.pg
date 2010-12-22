@@ -1,6 +1,6 @@
-diff -r 928eb6643ee3 Rules.mk
+diff -r 2b2d3f8072d3 Rules.mk
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/Rules.mk	Wed Dec 22 14:16:36 2010 +0000
++++ b/Rules.mk	Wed Dec 22 16:02:20 2010 +0000
 @@ -0,0 +1,29 @@
 +INSTALL      = install
 +INSTALL_DIR  = $(INSTALL) -d -m0755 -p
@@ -31,9 +31,9 @@ diff -r 928eb6643ee3 Rules.mk
 +CFLAGS += -Wdeclaration-after-statement
 +CFLAGS += -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
 +
-diff -r 928eb6643ee3 configure
---- a/configure	Wed Dec 22 14:16:14 2010 +0000
-+++ b/configure	Wed Dec 22 14:16:36 2010 +0000
+diff -r 2b2d3f8072d3 configure
+--- a/configure	Wed Dec 22 14:35:20 2010 +0000
++++ b/configure	Wed Dec 22 16:02:20 2010 +0000
 @@ -809,21 +809,6 @@ else
      fi
  fi # -z $sdl
@@ -69,30 +69,30 @@ diff -r 928eb6643ee3 configure
  echo "TOOLS=$tools" >> $config_mak
  
  test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h
-diff -r 928eb6643ee3 i386-dm/hookstarget.mak
---- a/i386-dm/hookstarget.mak	Wed Dec 22 14:16:14 2010 +0000
-+++ b/i386-dm/hookstarget.mak	Wed Dec 22 14:16:36 2010 +0000
+diff -r 2b2d3f8072d3 i386-dm/hookstarget.mak
+--- a/i386-dm/hookstarget.mak	Wed Dec 22 14:35:20 2010 +0000
++++ b/i386-dm/hookstarget.mak	Wed Dec 22 16:02:20 2010 +0000
 @@ -3,4 +3,3 @@ IOEMU_OS=$(shell uname -s)
  install-hook:
  	$(INSTALL_DIR) "$(DESTDIR)/$(bindir)"
  	$(INSTALL_DIR) "$(DESTDIR)/$(configdir)"
 -	$(INSTALL_PROG) $(QEMU_ROOT)/i386-dm/qemu-ifup-$(IOEMU_OS) "$(DESTDIR)/$(configdir)/qemu-ifup"
-diff -r 928eb6643ee3 mk/Makefile
+diff -r 2b2d3f8072d3 mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Wed Dec 22 14:16:36 2010 +0000
++++ b/mk/Makefile	Wed Dec 22 16:02:20 2010 +0000
 @@ -0,0 +1,76 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +include $(B_BASE)/common.mk
 +include $(B_BASE)/rpmbuild.mk
 +
-+REPO_NAME= qemu-xen-4.0
++REPO_NAME= qemu-xen-4.1
 +RPM_BUILD_COOKIE= $(MY_OBJ_DIR)/.rpm_build_cookie
 +SYNC_COOKIE= $(call hg_sync_dep,$(REPO_NAME))
 +REPO_STAMP = $(call pq_req,$(REPO_NAME))
 +REPO = $(call hg_sync,$(REPO_NAME))
 +
-+export XEN_ROOT=$(call pq_loc,xen-4.0)
++export XEN_ROOT=$(call pq_loc,xen-4.1)
 +
 +J_FLAG = 8
 +MAKE_CMD= $(MAKE) -j$(J_FLAG) -C $(REPO)
@@ -157,9 +157,9 @@ diff -r 928eb6643ee3 mk/Makefile
 +	@touch $@
 +
 +$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
-diff -r 928eb6643ee3 mk/xen-device-model.spec.in
+diff -r 2b2d3f8072d3 mk/xen-device-model.spec.in
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/xen-device-model.spec.in	Wed Dec 22 14:16:36 2010 +0000
++++ b/mk/xen-device-model.spec.in	Wed Dec 22 16:02:20 2010 +0000
 @@ -0,0 +1,39 @@
 +Summary: qemu-dm device model
 +Name: xen-device-model
@@ -200,9 +200,9 @@ diff -r 928eb6643ee3 mk/xen-device-model.spec.in
 +%dir /var/xen/qemu
 +
 +%changelog
-diff -r 928eb6643ee3 sdl.c
---- a/sdl.c	Wed Dec 22 14:16:14 2010 +0000
-+++ b/sdl.c	Wed Dec 22 14:16:36 2010 +0000
+diff -r 2b2d3f8072d3 sdl.c
+--- a/sdl.c	Wed Dec 22 14:35:20 2010 +0000
++++ b/sdl.c	Wed Dec 22 16:02:20 2010 +0000
 @@ -388,7 +388,7 @@ static uint8_t sdl_keyevent_to_keycode(c
  
  #else
@@ -212,9 +212,9 @@ diff -r 928eb6643ee3 sdl.c
  #include <X11/XKBlib.h>
  
  static int check_for_evdev(void)
-diff -r 928eb6643ee3 xen-config-host.mak
---- a/xen-config-host.mak	Wed Dec 22 14:16:14 2010 +0000
-+++ b/xen-config-host.mak	Wed Dec 22 14:16:36 2010 +0000
+diff -r 2b2d3f8072d3 xen-config-host.mak
+--- a/xen-config-host.mak	Wed Dec 22 14:35:20 2010 +0000
++++ b/xen-config-host.mak	Wed Dec 22 16:02:20 2010 +0000
 @@ -1,6 +1,6 @@
  QEMU_ROOT ?= .
  XEN_ROOT ?= $(QEMU_ROOT)/../xen-unstable.hg
@@ -223,9 +223,9 @@ diff -r 928eb6643ee3 xen-config-host.mak
  
  ifdef CONFIG_STUBDOM
  export TARGET_DIRS=i386-stubdom
-diff -r 928eb6643ee3 xen-config.mak
---- a/xen-config.mak	Wed Dec 22 14:16:14 2010 +0000
-+++ b/xen-config.mak	Wed Dec 22 14:16:36 2010 +0000
+diff -r 2b2d3f8072d3 xen-config.mak
+--- a/xen-config.mak	Wed Dec 22 14:35:20 2010 +0000
++++ b/xen-config.mak	Wed Dec 22 16:02:20 2010 +0000
 @@ -9,4 +9,4 @@ CONFIG_SOFTMMU=yes
  
  CFLAGS += -I$(QEMU_ROOT)/hw
