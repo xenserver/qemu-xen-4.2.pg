@@ -1,5 +1,4 @@
 diff --git a/keymaps.c b/keymaps.c
-index a61d465..d591211 100644
 --- a/keymaps.c
 +++ b/keymaps.c
 @@ -51,7 +51,6 @@ typedef struct {
@@ -9,21 +8,8 @@ index a61d465..d591211 100644
 -    struct key_range *altgr_range;
  } kbd_layout_t;
  
- static void add_to_key_range(struct key_range **krp, int code) {
-@@ -134,11 +133,7 @@ static kbd_layout_t *parse_keyboard_layout(const char *language,
- 			add_to_key_range(&k->localstate_range, keycode);
- 			//fprintf(stderr, "localstate keysym %04x keycode %d\n", keysym, keycode);
- 		    }
--		    if (rest && strstr(rest, "altgr")) {
--			add_to_key_range(&k->altgr_range, keysym);
--			//fprintf(stderr, "altgr keysym %04x keycode %d\n", keysym, keycode);
--		    }
--	
-+
- 		    /* if(keycode&0x80)
- 		       keycode=(keycode<<8)^0x80e0; */
- 		    if (keysym < MAX_NORMAL_KEYCODE) {
-@@ -238,16 +233,3 @@ static inline int keycode_is_shiftable(void *kbd_layout, int keycode)
+ static void del_key_range(struct key_range **krp, int code) {
+@@ -251,16 +250,3 @@ static inline int keycode_is_shiftable(v
  	    return 0;
      return 1;
  }
@@ -41,10 +27,9 @@ index a61d465..d591211 100644
 -}
 -
 diff --git a/vnc.c b/vnc.c
-index 0726746..702ee5d 100644
 --- a/vnc.c
 +++ b/vnc.c
-@@ -1274,27 +1274,12 @@ static void press_key_shift_up(VncState *vs, int down, int keycode)
+@@ -1274,25 +1274,12 @@ static void press_key_shift_up(VncState 
      }
  }
  
@@ -53,11 +38,9 @@ index 0726746..702ee5d 100644
 -    kbd_put_keycode(0xe0);
 -    if (down){
 -        kbd_put_keycode(0xb8 & 0x7f);
--        vs->modifiers_state[0xb8] = 1;
 -    }
 -    else {
 -        kbd_put_keycode(0xb8 | 0x80);
--        vs->modifiers_state[0xb8] = 0;
 -    }
 -}
 -
@@ -72,7 +55,7 @@ index 0726746..702ee5d 100644
  
      if (is_graphic_console()) {
          if (sym >= 'A' && sym <= 'Z') {
-@@ -1304,11 +1289,8 @@ static void do_key_event(VncState *vs, int down, uint32_t sym)
+@@ -1302,11 +1289,8 @@ static void do_key_event(VncState *vs, i
          else {
              shift = keysym_is_shift(vs->kbd_layout, sym & 0xFFFF);
          }
@@ -84,7 +67,7 @@ index 0726746..702ee5d 100644
  
      keycode = keysym2scancode(vs->kbd_layout, sym & 0xFFFF);
      if (keycode == 0) {
-@@ -1375,11 +1357,6 @@ static void do_key_event(VncState *vs, int down, uint32_t sym)
+@@ -1373,11 +1357,6 @@ static void do_key_event(VncState *vs, i
      }
  
      if (is_graphic_console()) {
