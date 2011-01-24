@@ -17,6 +17,7 @@
 #logdirty-compatibility
 
 revert-f95d202ed6444dacb15fbea4dee185eb0e048d9a
+revert-additional-changes
 
 #
 # patches from qemu upstream
