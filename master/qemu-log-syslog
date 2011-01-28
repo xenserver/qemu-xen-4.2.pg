@@ -1,6 +1,6 @@
-diff -r 3c7ef98ff420 Makefile
---- a/Makefile	Thu Dec 09 16:21:02 2010 +0000
-+++ b/Makefile	Thu Dec 09 16:21:35 2010 +0000
+diff -r 16f6d270ca09 Makefile
+--- a/Makefile	Fri Jan 28 16:45:23 2011 +0000
++++ b/Makefile	Fri Jan 28 17:00:48 2011 +0000
 @@ -34,6 +34,10 @@ ifdef CONFIG_WIN32
  LIBS+=-lwinmm -lws2_32 -liphlpapi
  endif
@@ -12,7 +12,7 @@ diff -r 3c7ef98ff420 Makefile
  all: $(TOOLS) $(DOCS) recurse-all
  
  SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
-@@ -92,6 +96,7 @@ OBJS+=sd.o ssi-sd.o
+@@ -93,6 +97,7 @@ OBJS+=sd.o ssi-sd.o
  OBJS+=bt.o bt-host.o bt-vhci.o bt-l2cap.o bt-sdp.o bt-hci.o bt-hid.o usb-bt.o
  OBJS+=buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
  OBJS+=qemu-char.o aio.o net-checksum.o savevm.o cache-utils.o
@@ -20,11 +20,12 @@ diff -r 3c7ef98ff420 Makefile
  
  ifdef CONFIG_BRLAPI
  OBJS+= baum.o
-diff -r 3c7ef98ff420 logging.c
+diff -r 16f6d270ca09 logging.c
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.c	Thu Dec 09 16:21:35 2010 +0000
-@@ -0,0 +1,126 @@
++++ b/logging.c	Fri Jan 28 17:00:48 2011 +0000
+@@ -0,0 +1,127 @@
 +#include "logging.h"
++#include "qemu-log.h"
 +#include <err.h>
 +#include <stdlib.h>
 +#include <dlfcn.h>
@@ -64,7 +65,7 @@ diff -r 3c7ef98ff420 logging.c
 +OVERRIDE_LIBC
 +size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 +{
-+    if ( stream == stdout ) {
++    if ( stream == stdout || stream == logfile ) {
 +        syslog(LOG_DAEMON | LOG_INFO, "%.*s", size * nmemb, ptr);
 +        return nmemb;
 +    }
@@ -78,11 +79,11 @@ diff -r 3c7ef98ff420 logging.c
 +OVERRIDE_LIBC
 +int vfprintf(FILE *stream, const char *fmt, va_list ap)
 +{
-+    if ( stream == stdout ) {
++    if ( stream == stdout || stream == logfile ) {
 +        vsyslog(LOG_DAEMON | LOG_INFO, fmt, ap);
 +        return 1;
 +    }
-+    if ( stream == stderr || stream == NULL ) {
++    if ( stream == stderr ) {
 +        vsyslog(LOG_DAEMON | LOG_ERR, fmt, ap);
 +        return 1;
 +    }
@@ -150,9 +151,9 @@ diff -r 3c7ef98ff420 logging.c
 +    vsyslog(LOG_DAEMON | LOG_WARNING, fmt, ap);
 +    va_end(ap);
 +}
-diff -r 3c7ef98ff420 logging.h
+diff -r 16f6d270ca09 logging.h
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.h	Thu Dec 09 16:21:35 2010 +0000
++++ b/logging.h	Fri Jan 28 17:00:48 2011 +0000
 @@ -0,0 +1,11 @@
 +#ifndef QEMU_LOGGING_H
 +#define QEMU_LOGGING_H
@@ -165,9 +166,9 @@ diff -r 3c7ef98ff420 logging.h
 +
 +#endif
 +
-diff -r 3c7ef98ff420 qemu-common.h
---- a/qemu-common.h	Thu Dec 09 16:21:02 2010 +0000
-+++ b/qemu-common.h	Thu Dec 09 16:21:35 2010 +0000
+diff -r 16f6d270ca09 qemu-common.h
+--- a/qemu-common.h	Fri Jan 28 16:45:23 2011 +0000
++++ b/qemu-common.h	Fri Jan 28 17:00:48 2011 +0000
 @@ -31,6 +31,7 @@
  #include <fcntl.h>
  #include <sys/stat.h>
@@ -176,10 +177,10 @@ diff -r 3c7ef98ff420 qemu-common.h
  
  #ifndef O_LARGEFILE
  #define O_LARGEFILE 0
-diff -r 3c7ef98ff420 vl.c
---- a/vl.c	Thu Dec 09 16:21:02 2010 +0000
-+++ b/vl.c	Thu Dec 09 16:21:35 2010 +0000
-@@ -5404,6 +5404,8 @@ int main(int argc, char **argv, char **e
+diff -r 16f6d270ca09 vl.c
+--- a/vl.c	Fri Jan 28 16:45:23 2011 +0000
++++ b/vl.c	Fri Jan 28 17:00:48 2011 +0000
+@@ -5504,6 +5504,8 @@ int main(int argc, char **argv, char **e
                  snprintf(domain_name, sizeof(domain_name),
                           "Xen-%s", optarg);
                  qemu_name = optarg;
