@@ -1,6 +1,6 @@
-diff -r 16f6d270ca09 Makefile
---- a/Makefile	Fri Jan 28 16:45:23 2011 +0000
-+++ b/Makefile	Fri Jan 28 17:00:48 2011 +0000
+diff -r 0e68f01f8efa Makefile
+--- a/Makefile	Thu Feb 03 11:18:06 2011 +0000
++++ b/Makefile	Tue Feb 08 17:04:57 2011 +0000
 @@ -34,6 +34,10 @@ ifdef CONFIG_WIN32
  LIBS+=-lwinmm -lws2_32 -liphlpapi
  endif
@@ -20,9 +20,49 @@ diff -r 16f6d270ca09 Makefile
  
  ifdef CONFIG_BRLAPI
  OBJS+= baum.o
-diff -r 16f6d270ca09 logging.c
+diff -r 0e68f01f8efa hw/xen_backend.c
+--- a/hw/xen_backend.c	Thu Feb 03 11:18:06 2011 +0000
++++ b/hw/xen_backend.c	Tue Feb 08 17:04:57 2011 +0000
+@@ -715,28 +715,16 @@ int xen_be_send_notify(struct XenDevice 
+  */
+ void xen_be_printf(struct XenDevice *xendev, int msg_level, const char *fmt, ...)
+ {
++    static const char * const suffix = "xen be core: ";
++    char fmt2[strlen(suffix) + strlen(fmt) + 1];
+     va_list args;
+ 
+-    if (xendev) {
+-        if (msg_level > xendev->debug)
+-            return;
+-        qemu_log("xen be: %s: ", xendev->name);
+-        if (msg_level == 0)
+-            fprintf(stderr, "xen be: %s: ", xendev->name);
+-    } else {
+-        if (msg_level > debug)
+-            return;
+-        qemu_log("xen be core: ");
+-        if (msg_level == 0)
+-            fprintf(stderr, "xen be core: ");
+-    }
++    if (msg_level > xendev->debug)
++        return;
++
++    snprintf(fmt2, sizeof(fmt2), "%s%s", suffix, fmt);
++
+     va_start(args, fmt);
+-    qemu_log_vprintf(fmt, args);
++    vprintf(fmt2, args);
+     va_end(args);
+-    if (msg_level == 0) {
+-        va_start(args, fmt);
+-        vfprintf(stderr, fmt, args);
+-        va_end(args);
+-    }
+-    qemu_log_flush();
+ }
+diff -r 0e68f01f8efa logging.c
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.c	Fri Jan 28 17:00:48 2011 +0000
++++ b/logging.c	Tue Feb 08 17:04:57 2011 +0000
 @@ -0,0 +1,127 @@
 +#include "logging.h"
 +#include "qemu-log.h"
@@ -151,9 +191,9 @@ diff -r 16f6d270ca09 logging.c
 +    vsyslog(LOG_DAEMON | LOG_WARNING, fmt, ap);
 +    va_end(ap);
 +}
-diff -r 16f6d270ca09 logging.h
+diff -r 0e68f01f8efa logging.h
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.h	Fri Jan 28 17:00:48 2011 +0000
++++ b/logging.h	Tue Feb 08 17:04:57 2011 +0000
 @@ -0,0 +1,11 @@
 +#ifndef QEMU_LOGGING_H
 +#define QEMU_LOGGING_H
@@ -166,9 +206,9 @@ diff -r 16f6d270ca09 logging.h
 +
 +#endif
 +
-diff -r 16f6d270ca09 qemu-common.h
---- a/qemu-common.h	Fri Jan 28 16:45:23 2011 +0000
-+++ b/qemu-common.h	Fri Jan 28 17:00:48 2011 +0000
+diff -r 0e68f01f8efa qemu-common.h
+--- a/qemu-common.h	Thu Feb 03 11:18:06 2011 +0000
++++ b/qemu-common.h	Tue Feb 08 17:04:57 2011 +0000
 @@ -31,6 +31,7 @@
  #include <fcntl.h>
  #include <sys/stat.h>
@@ -177,9 +217,9 @@ diff -r 16f6d270ca09 qemu-common.h
  
  #ifndef O_LARGEFILE
  #define O_LARGEFILE 0
-diff -r 16f6d270ca09 vl.c
---- a/vl.c	Fri Jan 28 16:45:23 2011 +0000
-+++ b/vl.c	Fri Jan 28 17:00:48 2011 +0000
+diff -r 0e68f01f8efa vl.c
+--- a/vl.c	Thu Feb 03 11:18:06 2011 +0000
++++ b/vl.c	Tue Feb 08 17:04:57 2011 +0000
 @@ -5504,6 +5504,8 @@ int main(int argc, char **argv, char **e
                  snprintf(domain_name, sizeof(domain_name),
                           "Xen-%s", optarg);
