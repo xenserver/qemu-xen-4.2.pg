@@ -1,6 +1,6 @@
 diff -r 0e68f01f8efa Makefile
 --- a/Makefile	Thu Feb 03 11:18:06 2011 +0000
-+++ b/Makefile	Tue Feb 08 17:04:57 2011 +0000
++++ b/Makefile	Thu Feb 10 12:08:07 2011 +0000
 @@ -34,6 +34,10 @@ ifdef CONFIG_WIN32
  LIBS+=-lwinmm -lws2_32 -liphlpapi
  endif
@@ -22,7 +22,7 @@ diff -r 0e68f01f8efa Makefile
  OBJS+= baum.o
 diff -r 0e68f01f8efa hw/xen_backend.c
 --- a/hw/xen_backend.c	Thu Feb 03 11:18:06 2011 +0000
-+++ b/hw/xen_backend.c	Tue Feb 08 17:04:57 2011 +0000
++++ b/hw/xen_backend.c	Thu Feb 10 12:08:07 2011 +0000
 @@ -715,28 +715,16 @@ int xen_be_send_notify(struct XenDevice 
   */
  void xen_be_printf(struct XenDevice *xendev, int msg_level, const char *fmt, ...)
@@ -44,7 +44,7 @@ diff -r 0e68f01f8efa hw/xen_backend.c
 -        if (msg_level == 0)
 -            fprintf(stderr, "xen be core: ");
 -    }
-+    if (msg_level > xendev->debug)
++    if (xendev && msg_level > xendev->debug)
 +        return;
 +
 +    snprintf(fmt2, sizeof(fmt2), "%s%s", suffix, fmt);
@@ -62,8 +62,10 @@ diff -r 0e68f01f8efa hw/xen_backend.c
  }
 diff -r 0e68f01f8efa logging.c
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.c	Tue Feb 08 17:04:57 2011 +0000
-@@ -0,0 +1,127 @@
++++ b/logging.c	Thu Feb 10 12:08:07 2011 +0000
+@@ -0,0 +1,138 @@
++#define _GNU_SOURCE
++#include <errno.h>
 +#include "logging.h"
 +#include "qemu-log.h"
 +#include <err.h>
@@ -74,8 +76,17 @@ diff -r 0e68f01f8efa logging.c
 +
 +void cpu_set_log_syslog(const char *ident)
 +{
-+    closelog();
 +    openlog(ident, LOG_NOWAIT | LOG_PID, LOG_DAEMON);
++}
++
++void do_syslog(int priority, const char *format, va_list ap)
++{
++    static int init;
++    if ( !init ) {
++        cpu_set_log_syslog(program_invocation_name);
++        init = 1;
++    }
++    vsyslog(priority, format, ap);
 +}
 +
 +static int system_vfprintf(FILE *stream, const char *fmt, va_list ap)
@@ -120,11 +131,11 @@ diff -r 0e68f01f8efa logging.c
 +int vfprintf(FILE *stream, const char *fmt, va_list ap)
 +{
 +    if ( stream == stdout || stream == logfile ) {
-+        vsyslog(LOG_DAEMON | LOG_INFO, fmt, ap);
++        do_syslog(LOG_DAEMON | LOG_INFO, fmt, ap);
 +        return 1;
 +    }
 +    if ( stream == stderr ) {
-+        vsyslog(LOG_DAEMON | LOG_ERR, fmt, ap);
++        do_syslog(LOG_DAEMON | LOG_ERR, fmt, ap);
 +        return 1;
 +    }
 +    return system_vfprintf(stream, fmt, ap);
@@ -176,7 +187,7 @@ diff -r 0e68f01f8efa logging.c
 +    va_list ap;
 +
 +    va_start(ap, fmt);
-+    vsyslog(LOG_DAEMON | LOG_ERR, fmt, ap);
++    do_syslog(LOG_DAEMON | LOG_ERR, fmt, ap);
 +    va_end(ap);
 +
 +    exit(status);
@@ -188,12 +199,12 @@ diff -r 0e68f01f8efa logging.c
 +    va_list ap;
 +
 +    va_start(ap, fmt);
-+    vsyslog(LOG_DAEMON | LOG_WARNING, fmt, ap);
++    do_syslog(LOG_DAEMON | LOG_WARNING, fmt, ap);
 +    va_end(ap);
 +}
 diff -r 0e68f01f8efa logging.h
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/logging.h	Tue Feb 08 17:04:57 2011 +0000
++++ b/logging.h	Thu Feb 10 12:08:07 2011 +0000
 @@ -0,0 +1,11 @@
 +#ifndef QEMU_LOGGING_H
 +#define QEMU_LOGGING_H
@@ -208,7 +219,7 @@ diff -r 0e68f01f8efa logging.h
 +
 diff -r 0e68f01f8efa qemu-common.h
 --- a/qemu-common.h	Thu Feb 03 11:18:06 2011 +0000
-+++ b/qemu-common.h	Tue Feb 08 17:04:57 2011 +0000
++++ b/qemu-common.h	Thu Feb 10 12:08:07 2011 +0000
 @@ -31,6 +31,7 @@
  #include <fcntl.h>
  #include <sys/stat.h>
@@ -219,7 +230,7 @@ diff -r 0e68f01f8efa qemu-common.h
  #define O_LARGEFILE 0
 diff -r 0e68f01f8efa vl.c
 --- a/vl.c	Thu Feb 03 11:18:06 2011 +0000
-+++ b/vl.c	Tue Feb 08 17:04:57 2011 +0000
++++ b/vl.c	Thu Feb 10 12:08:07 2011 +0000
 @@ -5504,6 +5504,8 @@ int main(int argc, char **argv, char **e
                  snprintf(domain_name, sizeof(domain_name),
                           "Xen-%s", optarg);
