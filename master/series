@@ -120,7 +120,7 @@ logging_patch
 #
 
 hvm-multicore
-savevm-to-tmp
+#savevm-to-tmp
 #marathon
 depriv_qemu
 move-disable-pf-key
