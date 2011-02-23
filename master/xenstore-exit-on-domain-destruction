@@ -1,7 +1,7 @@
-diff -r 68fe19a3b321 sysemu.h
---- a/sysemu.h	Tue Nov 30 14:13:08 2010 +0000
-+++ b/sysemu.h	Tue Nov 30 14:13:35 2010 +0000
-@@ -28,9 +28,11 @@ void cpu_disable_ticks(void);
+diff -r 189b86189cc9 sysemu.h
+--- a/sysemu.h	Wed Feb 23 18:02:40 2011 +0000
++++ b/sysemu.h	Wed Feb 23 20:46:06 2011 +0000
+@@ -28,9 +28,11 @@
  void qemu_system_reset_request(void);
  void qemu_system_shutdown_request(void);
  void qemu_system_powerdown_request(void);
@@ -13,10 +13,10 @@ diff -r 68fe19a3b321 sysemu.h
  #if !defined(TARGET_SPARC) && !defined(TARGET_I386)
  // Please implement a power failure function to signal the OS
  #define qemu_system_powerdown() do{}while(0)
-diff -r 68fe19a3b321 vl.c
---- a/vl.c	Tue Nov 30 14:13:08 2010 +0000
-+++ b/vl.c	Tue Nov 30 14:13:35 2010 +0000
-@@ -3618,6 +3618,7 @@ static QEMUResetEntry *first_reset_entry
+diff -r 189b86189cc9 vl.c
+--- a/vl.c	Wed Feb 23 18:02:40 2011 +0000
++++ b/vl.c	Wed Feb 23 20:46:06 2011 +0000
+@@ -3624,6 +3624,7 @@
  static int reset_requested;
  static int shutdown_requested;
  static int powerdown_requested;
@@ -24,49 +24,49 @@ diff -r 68fe19a3b321 vl.c
  
  int qemu_shutdown_requested(void)
  {
-@@ -3640,6 +3641,13 @@ int qemu_powerdown_requested(void)
-     return r;
- }
- 
+@@ -3643,6 +3644,13 @@
+ {
+     int r = powerdown_requested;
+     powerdown_requested = 0;
++    return r;
++}
++
 +int qemu_exit_requested(void)
 +{
 +    int r = exit_requested;
 +    exit_requested = 0;
-+    return r;
-+}
-+
- void qemu_register_reset(QEMUResetHandler *func, void *opaque)
- {
-     QEMUResetEntry **pre, *re;
-@@ -3693,6 +3701,11 @@ void qemu_system_powerdown_request(void)
-         cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+     return r;
  }
  
+@@ -3697,6 +3705,11 @@
+     fprintf(stderr, "requesting powerdown\n");
+     if (cpu_single_env)
+         cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
++}
++
 +void qemu_system_exit_request(void)
 +{
 +    exit_requested = 1;
-+}
-+
+ }
+ 
  #ifdef _WIN32
- static void host_main_loop_wait(int *timeout)
- {
-@@ -3820,6 +3833,12 @@ void main_loop_wait(int timeout)
+@@ -3825,6 +3838,12 @@
+         slirp_select_poll(&rfds, &wfds, &xfds);
      }
  #endif
- 
++
 +    if (qemu_exit_requested()) {
 +        /* Flush the cache and cancel outstanding aio requests */
 +        bdrv_flush_all();
 +        exit(0);
 +    }
-+
+ 
      /* vm time timers */
      if (vm_running && likely(!(cur_cpu->singlestep_enabled & SSTEP_NOTIMER)))
-         qemu_run_timers(&active_timers[QEMU_TIMER_VIRTUAL],
-diff -r 68fe19a3b321 xenstore.c
---- a/xenstore.c	Tue Nov 30 14:13:08 2010 +0000
-+++ b/xenstore.c	Tue Nov 30 14:13:35 2010 +0000
-@@ -528,6 +528,7 @@ void xenstore_parse_domain_config(int hv
+diff -r 189b86189cc9 xenstore.c
+--- a/xenstore.c	Wed Feb 23 18:02:40 2011 +0000
++++ b/xenstore.c	Wed Feb 23 20:46:06 2011 +0000
+@@ -570,6 +570,7 @@
      } else {
          guest_path = strdup(danger_path);
      }
@@ -74,7 +74,7 @@ diff -r 68fe19a3b321 xenstore.c
  
      if (pasprintf(&buf, "%s/keymap", guest_path) != -1)
          xs_watch(xsh, buf, KEYMAP_TOKEN); // Ignore failure -- we can muddle on.i
-@@ -1206,6 +1207,7 @@ void xenstore_process_event(void *opaque
+@@ -1284,6 +1285,7 @@
  {
      char **vec, *offset, *bpath = NULL, *buf = NULL, *drv = NULL, *image = NULL;
      unsigned int len, num, hd_index, i;
@@ -82,17 +82,22 @@ diff -r 68fe19a3b321 xenstore.c
  
      vec = xs_read_watch(xsh, &num);
      if (!vec)
-@@ -1240,6 +1242,13 @@ void xenstore_process_event(void *opaque
-         goto out;
-     }
+@@ -1320,6 +1322,18 @@
  
-+    if (!strcmp(vec[XS_WATCH_TOKEN], "releaseDomain") &&
-+            (xc_domain_getinfo(xc_handle, domid, 1, &dominfo) != 1 ||
-+             dominfo.domid != domid || dominfo.dying)) {
-+        qemu_system_exit_request();
+     if (!strcmp(vec[XS_WATCH_TOKEN], "vcpu-set")) {
+         xenstore_process_vcpu_set_event(vec);
 +        goto out;
 +    }
 +
-     /* if we are paused don't process anything else */
-     if (xen_pause_requested)
++    if (!strcmp(vec[XS_WATCH_TOKEN], "releaseDomain")) {
++        int rc;
++        if ( (rc=xc_domain_getinfo(xc_handle, domid, 1, &dominfo)) != 1
++            || dominfo.domid != domid || dominfo.dying)
++            qemu_system_exit_request();
++        else
++            fprintf(stderr," releaseDomain signal caught, but domain %d not dead:\n" \
++                    "   rc %d dominfo.domid %d dominfo.dying %d\n",
++                    domid, rc, dominfo.domid, dominfo.dying);
          goto out;
+     }
+ 
