@@ -1,0 +1,125 @@
+diff -r bf208805154a -r 8de964be7fb7 qemu-common.h
+--- a/qemu-common.h	Fri Feb 25 14:55:59 2011 +0000
++++ b/qemu-common.h	Fri Feb 25 14:56:46 2011 +0000
+@@ -209,10 +209,4 @@
+ 
+ #endif /* dyngen-exec.h hack */
+ 
+-#include "qemu_socket.h"
+-
+-void xenstore_write_vncinfo(int port,
+-                            const struct sockaddr *addr,
+-                            socklen_t addrlen,
+-                            const char *password);
+ #endif
+diff -r bf208805154a -r 8de964be7fb7 qemu-xen.h
+--- a/qemu-xen.h	Fri Feb 25 14:55:59 2011 +0000
++++ b/qemu-xen.h	Fri Feb 25 14:56:46 2011 +0000
+@@ -71,6 +71,7 @@
+ void xenstore_record_dm(const char *subpath, const char *state);
+ void xenstore_record_dm_state(const char *state);
+ void xenstore_check_new_media_present(int timeout);
++void xenstore_write_vncport(int vnc_display);
+ void xenstore_read_vncpasswd(int domid, char *pwbuf, size_t pwbuflen);
+ void xenstore_write_vslots(char *vslots);
+ 
+diff -r bf208805154a -r 8de964be7fb7 vl.c
+--- a/vl.c	Fri Feb 25 14:55:59 2011 +0000
++++ b/vl.c	Fri Feb 25 14:56:46 2011 +0000
+@@ -6003,6 +6003,7 @@
+                     vnc_display_port = vnc_display_open(ds, vnc_display, vncunused);
+ 		    if (vnc_display_port < 0)
+                         exit(1);
++		    xenstore_write_vncport(vnc_display_port);
+                 }
+ #if defined(CONFIG_SDL)
+                 if (sdl || !vnc_display)
+diff -r bf208805154a -r 8de964be7fb7 vnc.c
+--- a/vnc.c	Fri Feb 25 14:55:59 2011 +0000
++++ b/vnc.c	Fri Feb 25 14:56:46 2011 +0000
+@@ -2747,9 +2747,6 @@
+ 	return -1;
+     }
+ 
+-    xenstore_write_vncinfo(ntohs(iaddr.sin_port), addr, addrlen,
+-                           vs->password);
+-
+     if (qemu_set_fd_handler2(vs->lsock, vnc_listen_poll, vnc_listen_read, NULL, vs) < 0)
+ 	return -1;
+ 
+diff -r bf208805154a -r 8de964be7fb7 xenstore.c
+--- a/xenstore.c	Fri Feb 25 14:55:59 2011 +0000
++++ b/xenstore.c	Fri Feb 25 14:56:46 2011 +0000
+@@ -1138,55 +1138,32 @@
+     free(vec);
+ }
+ 
+-static void xenstore_write_domain_console_item
+-    (const char *item, const char *val)
++void xenstore_write_vncport(int display)
+ {
+-    char *dompath;
+-    char *path = NULL;
++    char *buf = NULL, *path;
++    char *portstr = NULL;
+ 
+     if (xsh == NULL)
+         return;
+ 
+-    dompath = xs_get_domain_path(xsh, domid);
+-    if (dompath == NULL) goto out_err;
++    path = xs_get_domain_path(xsh, domid);
++    if (path == NULL) {
++        fprintf(logfile, "xs_get_domain_path() error\n");
++        goto out;
++    }
+ 
+-    if (pasprintf(&path, "%s/console/%s", dompath, item) == -1) goto out_err;
++    if (pasprintf(&buf, "%s/console/vnc-port", path) == -1)
++        goto out;
+ 
+-    if (xs_write(xsh, XBT_NULL, path, val, strlen(val)) == 0)
+-        goto out_err;
++    if (pasprintf(&portstr, "%d", display) == -1)
++        goto out;
++
++    if (xs_write(xsh, XBT_NULL, buf, portstr, strlen(portstr)) == 0)
++        fprintf(logfile, "xs_write() vncport failed\n");
+ 
+  out:
+-    free(path);
+-    return;
+-
+- out_err:
+-    fprintf(logfile, "write console item %s (%s) failed\n", item, path);
+-    goto out;
+-}
+-
+-void xenstore_write_vncinfo(int port,
+-                            const struct sockaddr *addr,
+-                            socklen_t addrlen,
+-                            const char *password)
+-{
+-    char *portstr = NULL;
+-    const char *addrstr;
+-
+-    if (pasprintf(&portstr, "%d", port) != -1) {
+-        xenstore_write_domain_console_item("vnc-port", portstr);
+-        free(portstr);
+-    }
+-
+-    assert(addr->sa_family == AF_INET); 
+-    addrstr = inet_ntoa(((const struct sockaddr_in*)addr)->sin_addr);
+-    if (!addrstr) {
+-        fprintf(logfile, "inet_ntop on vnc-addr failed\n");
+-    } else {
+-        xenstore_write_domain_console_item("vnc-listen", addrstr);
+-    }
+-
+-    if (password)
+-        xenstore_write_domain_console_item("vnc-pass", password);
++    free(portstr);
++    free(buf);
+ }
+ 
+ void xenstore_write_vslots(char *vslots)
