@@ -1,15 +1,6 @@
-diff -r 269cefd2e175 -r 6aa11c55a9e2 hw/piix4acpi.c
---- a/hw/piix4acpi.c	Fri Jan 28 17:01:32 2011 +0000
-+++ b/hw/piix4acpi.c	Mon Jan 31 15:41:07 2011 +0000
-@@ -38,7 +38,7 @@
- #define PIIX4ACPI_LOG_ERROR 0
- #define PIIX4ACPI_LOG_INFO 1
- #define PIIX4ACPI_LOG_DEBUG 2
--#define PIIX4ACPI_LOGLEVEL PIIX4ACPI_LOG_INFO
-+#define PIIX4ACPI_LOGLEVEL PIIX4ACPI_LOG_DEBUG
- #define PIIX4ACPI_LOG(level, fmt, ...) do { if (level <= PIIX4ACPI_LOGLEVEL) qemu_log(fmt, ## __VA_ARGS__); } while (0)
- 
- #ifdef CONFIG_PASSTHROUGH
+diff -r 026593a6601e hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Thu Mar 17 19:14:54 2011 +0000
++++ b/hw/piix4acpi.c	Thu Mar 17 19:16:13 2011 +0000
 @@ -53,12 +53,9 @@
  
  /* Sleep state type codes as defined by the \_Sx objects in the DSDT. */
