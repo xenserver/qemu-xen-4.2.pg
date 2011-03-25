@@ -130,3 +130,4 @@ sources-target-in-Makefile
 #
 ## Disable firmware config (fw_cfg) port
 CA-32196-disable-fw-cfg
+abort-on-bad-loadvm

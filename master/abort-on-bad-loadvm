@@ -1,0 +1,49 @@
+diff -r 1586d55de68e savevm.c
+--- a/savevm.c	Fri Mar 25 16:27:22 2011 +0000
++++ b/savevm.c	Fri Mar 25 16:41:33 2011 +0000
+@@ -909,8 +909,11 @@ int qemu_loadvm_state(QEMUFile *f)
+     int ret;
+ 
+     v = qemu_get_be32(f);
+-    if (v != QEMU_VM_FILE_MAGIC)
++    if (v != QEMU_VM_FILE_MAGIC) {
++        fprintf(stderr, "Bad savevm magic %u != %u\n",
++                v, QEMU_VM_FILE_MAGIC);
+         return -EINVAL;
++    }
+ 
+     loadvm_version_id = qemu_get_be32(f);
+     if (loadvm_version_id < QEMU_VM_FILE_VERSION)
+diff -r 1586d55de68e xen-vl-extra.c
+--- a/xen-vl-extra.c	Fri Mar 25 16:27:22 2011 +0000
++++ b/xen-vl-extra.c	Fri Mar 25 16:41:33 2011 +0000
+@@ -75,15 +75,19 @@ void do_loadvm(const char *name)
+     f = qemu_fopen(name, "rb");
+     if (!f) {
+         fprintf(logfile, "Could not open VM state file\n");
+-        goto the_end;
++        abort();
+     }
+ 
+     ret = qemu_loadvm_state(f);
+     qemu_fclose(f);
+     if (ret < 0) {
++        char buf[strlen(name) + 16];
+         fprintf(logfile, "Error %d while loading savevm file '%s'\n",
+                 ret, name);
+-        goto the_end; 
++        snprintf(buf, sizeof(buf), "%s-broken", name);
++        fprintf(stderr, "Linking %s -> %s\n", name, buf);
++        link(name, buf);
++        abort();
+     }
+ 
+ #if 0 
+@@ -93,7 +97,6 @@ void do_loadvm(const char *name)
+ #endif
+ 
+ 
+- the_end:
+     if (saved_vm_running)
+         vm_start();
+ }
