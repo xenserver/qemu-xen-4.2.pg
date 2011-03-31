@@ -79,12 +79,10 @@ fix-buildrequires
 
 qemu-3.4-fdc
 hvm-late-unpause
-qemu-log-syslog
 crashdump-to-qemu
 xen-platform-scsi-controller
 xenstore_set_device_locked
 close-and-flush-disconnected-emulated-devices
-qemu-set-domainname-from-xenstore
 qemu-logconsole-to-file
 qemu-sdl-nograb
 qemu-dont-probe-disk-format
@@ -114,7 +112,6 @@ enable_cirrus_irq
 xenstore-exit-on-domain-destruction # does not work with stubdom
 set_timeoffset
 qemu-use-backdev
-logging_patch
 
 #
 # Product specific, incompatible with Open Source
