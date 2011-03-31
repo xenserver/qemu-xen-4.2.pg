@@ -111,15 +111,6 @@ diff --git a/hw/piix4acpi.c b/hw/piix4acpi.c
      qemu_get_be16s(f, &s->pm1_control);
  
      pm1a_evt_address_assigned = s->pm1a_evt_blk_address;
-@@ -423,8 +425,6 @@ static void php_devfn_init(void)
-                          acpi_php_readb, &php_devfn);
-     register_ioport_write(ACPI_PHP_IO_ADDR, NR_PHP_SLOT_REG + 2, 1,
-                           acpi_php_writeb, &php_devfn);
--    register_savevm("pci_devfn", 0, 1, pci_devfn_save, pci_devfn_load,
--                    &php_devfn);
- }
- #endif /* CONFIG_PASSTHROUGH */
- 
 @@ -779,6 +779,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int 
      register_ioport_write(ACPI_DBG_IO_ADDR, 4, 4, acpi_dbg_writel, d);
  
