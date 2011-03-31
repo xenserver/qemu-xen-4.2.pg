@@ -1,6 +1,6 @@
-diff -r 27222358411b qemu-char.c
---- a/qemu-char.c	Fri Nov 19 16:20:41 2010 +0000
-+++ b/qemu-char.c	Fri Nov 19 16:20:54 2010 +0000
+diff -r e27621275f9e qemu-char.c
+--- a/qemu-char.c	Thu Mar 31 18:03:32 2011 +0100
++++ b/qemu-char.c	Thu Mar 31 18:09:30 2011 +0100
 @@ -588,7 +588,7 @@ static CharDriverState *qemu_chr_open_fi
  {
      int fd_out;
@@ -10,9 +10,9 @@ diff -r 27222358411b qemu-char.c
      if (fd_out < 0)
          return NULL;
      return qemu_chr_open_fd(-1, fd_out);
-diff -r 27222358411b sysemu.h
---- a/sysemu.h	Fri Nov 19 16:20:41 2010 +0000
-+++ b/sysemu.h	Fri Nov 19 16:20:54 2010 +0000
+diff -r e27621275f9e sysemu.h
+--- a/sysemu.h	Thu Mar 31 18:03:32 2011 +0100
++++ b/sysemu.h	Thu Mar 31 18:09:30 2011 +0100
 @@ -196,6 +196,7 @@ void pci_device_hot_remove_success(int p
  #define MAX_SERIAL_PORTS 4
  
@@ -21,10 +21,10 @@ diff -r 27222358411b sysemu.h
  
  /* parallel ports */
  
-diff -r 27222358411b vl.c
---- a/vl.c	Fri Nov 19 16:20:41 2010 +0000
-+++ b/vl.c	Fri Nov 19 16:20:54 2010 +0000
-@@ -232,6 +232,7 @@ static int no_frame = 0;
+diff -r e27621275f9e vl.c
+--- a/vl.c	Thu Mar 31 18:03:32 2011 +0100
++++ b/vl.c	Thu Mar 31 18:09:30 2011 +0100
+@@ -233,6 +233,7 @@ static int no_frame = 0;
  #endif
  int no_quit = 0;
  CharDriverState *serial_hds[MAX_SERIAL_PORTS];
@@ -32,7 +32,7 @@ diff -r 27222358411b vl.c
  CharDriverState *parallel_hds[MAX_PARALLEL_PORTS];
  CharDriverState *virtcon_hds[MAX_VIRTIO_CONSOLES];
  #ifdef TARGET_I386
-@@ -4810,7 +4811,6 @@ int main(int argc, char **argv, char **e
+@@ -4812,7 +4813,6 @@ int main(int argc, char **argv, char **e
      const char *r, *optarg;
      CharDriverState *monitor_hd = NULL;
      const char *monitor_device;
@@ -40,7 +40,7 @@ diff -r 27222358411b vl.c
      int serial_device_index;
      const char *parallel_devices[MAX_PARALLEL_PORTS];
      int parallel_device_index;
-@@ -5959,7 +5959,7 @@ int main(int argc, char **argv, char **e
+@@ -5962,7 +5962,7 @@ int main(int argc, char **argv, char **e
              if (!virtcon_hds[i]) {
                  fprintf(stderr, "qemu: could not open virtio console '%s'\n",
                          devname);
@@ -49,41 +49,38 @@ diff -r 27222358411b vl.c
              }
          }
      }
-diff -r 27222358411b xenstore.c
---- a/xenstore.c	Fri Nov 19 16:20:41 2010 +0000
-+++ b/xenstore.c	Fri Nov 19 16:20:54 2010 +0000
-@@ -431,6 +431,8 @@ void xenstore_parse_domain_config(int hv
+diff -r e27621275f9e xenstore.c
+--- a/xenstore.c	Thu Mar 31 18:03:32 2011 +0100
++++ b/xenstore.c	Thu Mar 31 18:09:30 2011 +0100
+@@ -488,6 +488,8 @@ void xenstore_parse_domain_config(int hv
      char *buf = NULL;
      char *fpath = NULL, *bpath = NULL,
-         *dev = NULL, *params = NULL, *drv = NULL, *name = NULL;
+         *dev = NULL, *params = NULL, *drv = NULL;
 +    char *serial_c;
 +    char serial_temp[PATH_MAX - 5];
      int i, ret;
      unsigned int len, num, hd_index, pci_devid = 0;
      BlockDriverState *bs;
-@@ -465,9 +467,25 @@ void xenstore_parse_domain_config(int hv
-             cpu_set_log_syslog(domain_name);
- 	    cpu_set_log(0);
- 	}
--	free(name);
-     }
+@@ -506,6 +508,23 @@ void xenstore_parse_domain_config(int hv
+     for(i = 0; i < MAX_DRIVES + 1; i++)
+         media_filename[i] = NULL;
  
 +    /* read the console output filename */
 +    serial_c = xs_read(xsh, XBT_NULL, "/local/logconsole/@", NULL);
 +    if (serial_c) {
 +        serial_devices[0] = qemu_mallocz(PATH_MAX);
 +	strcpy(serial_devices[0], "file:");
-+	if (strstr(serial_c, "%s"))
++	if (strstr(serial_c, "%s")) {
++            char *name = xenstore_vm_read(domid, "uuid", NULL);
++            /* format string exploit from xenstore?? */
 +	    snprintf(serial_temp, sizeof(serial_temp), serial_c, name);
-+	else
++            free(name);
++	}else
 +	    snprintf(serial_temp, sizeof(serial_temp), serial_c, domid);
 +	strncat(serial_devices[0], serial_temp, sizeof(serial_temp));
 +	free(serial_c);
 +    }
 +    /* we don't care if it failed or not */
-+
-+    if (name)
-+ 	free(name);
 +
      danger_path = xs_get_domain_path(xsh, hvm_domid);
      if (danger_path == NULL) {
