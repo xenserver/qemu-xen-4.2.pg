@@ -1,0 +1,21 @@
+# HG changeset patch
+# Parent 3b4d1e084bdc0fc56594a7afccafd5f68ca73c66
+diff -r 3b4d1e084bdc -r bd9a197812a7 privsep.c
+--- a/privsep.c	Mon Apr 04 17:19:54 2011 +0100
++++ b/privsep.c	Mon Apr 04 17:20:26 2011 +0100
+@@ -236,8 +236,15 @@
+         msg.msg_control = tmp;
+         msg.msg_controllen = sizeof(tmp);
+ 
++retry:
+         if ((n = recvmsg(sock, &msg, 0)) == -1)
+                 warn("%s: recvmsg", "receive_fd");
++        if ( errno == EINTR )
++        {
++            printk("%s: Interrupted system call.  termsig %d.  Retrying.\n",
++                   __func__, termsig);
++            goto retry;
++        }
+         if (n != sizeof(int))
+                 warnx("%s: recvmsg: expected received 1 got %zd",
+                       "receive_fd", n);
