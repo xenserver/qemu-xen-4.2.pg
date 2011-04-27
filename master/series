@@ -62,6 +62,7 @@ vga-clear-fb-on-switch-to-graphic
 cirrus-fix-windows-raster-ops # patches vga-clear-fb-on-switch-to-graphic
 unplug-version-2
 CA-46806-validate-map-cache-entries
+CA-55725-retry-after-listen-fail
 
 #
 # Build system
