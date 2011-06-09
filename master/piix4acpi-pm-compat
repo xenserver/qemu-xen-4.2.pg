@@ -1,7 +1,7 @@
-diff -r 026593a6601e hw/piix4acpi.c
---- a/hw/piix4acpi.c	Thu Mar 17 19:14:54 2011 +0000
-+++ b/hw/piix4acpi.c	Thu Mar 17 19:16:13 2011 +0000
-@@ -53,12 +53,9 @@
+diff -r 939a3f182a28 hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Thu Jun 09 17:25:00 2011 +0100
++++ b/hw/piix4acpi.c	Thu Jun 09 17:27:04 2011 +0100
+@@ -54,12 +54,9 @@
  
  /* Sleep state type codes as defined by the \_Sx objects in the DSDT. */
  /* These must be kept in sync with the DSDT (hvmloader/acpi/dsdt.asl) */
@@ -17,10 +17,10 @@ diff -r 026593a6601e hw/piix4acpi.c
  
  #define ACPI_DBG_IO_ADDR  0xb044
  #define ACPI_PHP_IO_ADDR  0x10c0
-@@ -81,14 +78,12 @@
- typedef struct PCIAcpiState {
+@@ -83,14 +80,12 @@ typedef struct PCIAcpiState {
      PCIDevice dev;
      uint16_t pm1_control; /* pm1a_ECNT_BLK */
+     QEMUTimer *ts;
 -
 -    uint32_t pm1a_evt_blk_address;
  } PCIAcpiState;
@@ -34,7 +34,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  
      /* CPU bitmap */
      uint8_t cpus_sts[32];
-@@ -96,8 +91,6 @@ typedef struct GPEState {
+@@ -98,8 +93,6 @@ typedef struct GPEState {
      /* SCI IRQ level */
      uint8_t sci_asserted;
  
@@ -43,7 +43,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  } GPEState;
  
  static GPEState gpe_state;
-@@ -110,9 +103,6 @@ typedef struct PHPDevFn {
+@@ -112,9 +105,6 @@ typedef struct PHPDevFn {
                                        * PSTB in ASL */
  } PHPDevFn;
  
@@ -53,7 +53,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  static PHPDevFn php_devfn;
  int s3_shutdown_flag;
  static qemu_irq sci_irq;
-@@ -151,7 +141,6 @@ static void piix4acpi_save(QEMUFile *f, 
+@@ -153,7 +143,6 @@ static void piix4acpi_save(QEMUFile *f, 
      PCIAcpiState *s = opaque;
      pci_device_save(&s->dev, f);
      qemu_put_be16s(f, &s->pm1_control);
@@ -61,7 +61,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  }
  
  static int piix4acpi_load(QEMUFile *f, void *opaque, int version_id)
-@@ -160,7 +149,7 @@ static int piix4acpi_load(QEMUFile *f, v
+@@ -162,7 +151,7 @@ static int piix4acpi_load(QEMUFile *f, v
      int ret;
      uint32_t pm1a_evt_address_assigned;
  
@@ -70,7 +70,7 @@ diff -r 026593a6601e hw/piix4acpi.c
          return -EINVAL;
      if (loadvm_version_id > 1) {
          ret = pci_device_load(&s->dev, f);
-@@ -169,20 +158,6 @@ static int piix4acpi_load(QEMUFile *f, v
+@@ -171,20 +160,6 @@ static int piix4acpi_load(QEMUFile *f, v
      }
      qemu_get_be16s(f, &s->pm1_control);
  
@@ -91,26 +91,40 @@ diff -r 026593a6601e hw/piix4acpi.c
      return 0;
  }
  
-@@ -434,15 +409,13 @@ static void acpi_shutdown(uint32_t val)
-         return;
+@@ -450,11 +425,10 @@ static void rtc_wake(void *opaque)
+     fprintf(stderr, "RTC alarm fired\n");
  
-     switch (val & SLP_TYP_Sx) {
+     switch (s->pm1_control & SLP_TYP_Sx) {
 -    case SLP_TYP_S3_V0:
 -    case SLP_TYP_S3_V1:
 +    case SLP_TYP_S3:
-         acpi_s3();
+         wake_from_s3(s);
          break;
 -    case SLP_TYP_S4_V0:
 +    case SLP_TYP_S4:
-         acpi_s4();
+         wake_from_s4(s);
+         break;
+     default:
+@@ -465,15 +439,13 @@ static void rtc_wake(void *opaque)
+ static void acpi_shutdown(PCIAcpiState *s)
+ {
+     switch (s->pm1_control & SLP_TYP_Sx) {
+-    case SLP_TYP_S3_V0:
+-    case SLP_TYP_S3_V1:
++    case SLP_TYP_S3:
+         acpi_s3(s);
+         break;
+-    case SLP_TYP_S4_V0:
++    case SLP_TYP_S4:
+         acpi_s4(s);
          break;
 -    case SLP_TYP_S5_V0:
 -    case SLP_TYP_S5_V1:
 +    case SLP_TYP_S5:
-         acpi_s5();
+         acpi_s5(s);
          break;
      default:
-@@ -663,7 +636,9 @@ static uint32_t gpe_sts_read(void *opaqu
+@@ -699,7 +671,9 @@ static uint32_t gpe_sts_read(void *opaqu
  {
      GPEState *s = opaque;
  
@@ -121,7 +135,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  }
  
  /* write 1 to clear specific GPE bits */
-@@ -675,7 +650,7 @@ static void gpe_sts_write(void *opaque, 
+@@ -711,7 +685,7 @@ static void gpe_sts_write(void *opaque, 
      PIIX4ACPI_LOG(PIIX4ACPI_LOG_DEBUG, "gpe_sts_write: addr=0x%x, val=0x%x.\n", addr, val);
  
      hotplugged = test_bit(&s->gpe0_sts[0], ACPI_PHP_GPE_BIT);
@@ -130,7 +144,7 @@ diff -r 026593a6601e hw/piix4acpi.c
      if ( s->sci_asserted &&
           hotplugged &&
           !test_bit(&s->gpe0_sts[0], ACPI_PHP_GPE_BIT)) {
-@@ -689,7 +664,9 @@ static uint32_t gpe_en_read(void *opaque
+@@ -725,7 +699,9 @@ static uint32_t gpe_en_read(void *opaque
  {
      GPEState *s = opaque;
  
@@ -141,7 +155,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  }
  
  /* write 0 to clear en bit */
-@@ -699,7 +676,7 @@ static void gpe_en_write(void *opaque, u
+@@ -735,7 +711,7 @@ static void gpe_en_write(void *opaque, u
      int reg_count;
  
      PIIX4ACPI_LOG(PIIX4ACPI_LOG_DEBUG, "gpe_en_write: addr=0x%x, val=0x%x.\n", addr, val);
@@ -150,7 +164,7 @@ diff -r 026593a6601e hw/piix4acpi.c
      s->gpe0_en[reg_count] = val;
      /* If disable GPE bit right after generating SCI on it, 
       * need deassert the intr to avoid redundant intrs
-@@ -719,7 +696,7 @@ static void gpe_save(QEMUFile* f, void* 
+@@ -755,7 +731,7 @@ static void gpe_save(QEMUFile* f, void* 
      GPEState *s = (GPEState*)opaque;
      int i;
  
@@ -159,7 +173,7 @@ diff -r 026593a6601e hw/piix4acpi.c
          qemu_put_8s(f, &s->gpe0_sts[i]);
          qemu_put_8s(f, &s->gpe0_en[i]);
      }
-@@ -728,54 +705,21 @@ static void gpe_save(QEMUFile* f, void* 
+@@ -764,54 +740,21 @@ static void gpe_save(QEMUFile* f, void* 
      if ( s->sci_asserted ) {
          PIIX4ACPI_LOG(PIIX4ACPI_LOG_INFO, "gpe_save with sci asserted!\n");
      }
@@ -216,7 +230,7 @@ diff -r 026593a6601e hw/piix4acpi.c
      return 0;
  }
  
-@@ -822,32 +766,29 @@ static void gpe_acpi_init(void)
+@@ -858,32 +801,29 @@ static void gpe_acpi_init(void)
      register_ioport_read(PROC_BASE, 32, 1,  gpe_cpus_readb, s);
      register_ioport_write(PROC_BASE, 32, 1, gpe_cpus_writeb, s);
  
@@ -258,7 +272,7 @@ diff -r 026593a6601e hw/piix4acpi.c
  }
  
  #ifdef CONFIG_PASSTHROUGH
-@@ -999,8 +940,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int 
+@@ -1039,8 +979,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int 
      pci_conf[0x43] = 0x00;
      d->pm1_control = SCI_EN;
  

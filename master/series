@@ -94,8 +94,7 @@ qemu-sdl-hide-pointer-when-not-in-focus
 CA-10912-silence-parallel-msg
 qemu-enforce-read-only-CA-12833
 qemu-sdl-geometry
-acpi-s4-wake-timer
-acpi-s3-wake-timer
+acpi-wake-timer
 piix4acpi-pm-compat
 qemu-keymap
 vnc_clipboard
