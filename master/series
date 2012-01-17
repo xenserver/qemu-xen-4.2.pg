@@ -131,3 +131,4 @@ abort-on-bad-loadvm
 savevm_dummy_handler_for_pcislots
 retry_receivefd_on_EINTR
 msitranslate_default_off.diff
+fix-vnc-overflow
