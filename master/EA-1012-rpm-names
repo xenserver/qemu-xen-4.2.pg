@@ -1,0 +1,15 @@
+# HG changeset patch
+# Parent 353899e909af6b6a856831caed7f24f8ade418ea
+
+diff -r 353899e909af mk/Makefile
+--- a/mk/Makefile
++++ b/mk/Makefile
+@@ -21,7 +21,7 @@
+ 	awk -F. '{ print "REPO_VERSION=" $$0; }' \
+ 		< $(REPO_STAMP) >> $@
+ 	$(call pq_cset_number,$(REPO_NAME)) >> $@
+-	echo IOEMU_VERSION := \$$\(PRODUCT_VERSION\) >> $@
++	echo IOEMU_VERSION := \$$\(PLATFORM_VERSION\) >> $@
+ 	echo IOEMU_RELEASE := \$$\(CSET_NUMBER\) >> $@
+ 
+ CHANGELOG_DATE    := $(shell LANG=C date +"%a %b %d %Y")
