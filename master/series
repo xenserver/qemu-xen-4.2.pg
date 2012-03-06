@@ -134,3 +134,4 @@ msitranslate_default_off.diff
 fix-vnc-overflow
 EA-1012-rpm-names
 cve-2012-0029-qemu-xen-unstable.patch # Heap buffer overflow vulnerability
+CP-3235
