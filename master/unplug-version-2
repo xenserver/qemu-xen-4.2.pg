@@ -7,10 +7,10 @@ port 13 tells qemu which device of the current type to unplug.
 
 Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
 
-diff -r 0e7c260e7dad hw/ide.c
---- a/hw/ide.c	Mon Jan 24 18:46:24 2011 +0000
-+++ b/hw/ide.c	Mon Jan 24 18:53:56 2011 +0000
-@@ -3096,44 +3096,57 @@
+diff -r 9c7c49d81b64 hw/ide.c
+--- a/hw/ide.c	Mon Mar 05 16:17:55 2012 +0000
++++ b/hw/ide.c	Wed Mar 14 14:53:24 2012 +0000
+@@ -3096,44 +3096,57 @@ static void ide_reset(IDEState *s)
  
  /* Unplug all of the IDE hard disks, starting at index @start in the
     table. */
@@ -41,7 +41,6 @@ diff -r 0e7c260e7dad hw/ide.c
 -        bdrv_close(s->bs);
 -        s->bs = NULL;
 -        ide_reset(s);
--    }
 +
 +    s = principal_ide_controller->ide_if + i;
 +    if (!s->bs)
@@ -56,7 +55,7 @@ diff -r 0e7c260e7dad hw/ide.c
 +            fprintf(stderr, "%s: drive %d\n", __func__, i, j);
 +            drives_table[j].bdrv = NULL;
 +        }
-+    }
+     }
 + 
 +    bdrv_flush(s->bs);
 +    bdrv_close(s->bs);
@@ -77,10 +76,9 @@ diff -r 0e7c260e7dad hw/ide.c
  
  /* Unplug all hard disks, including the boot device. */
 -void ide_unplug_harddisks(void)
--{
--    _ide_unplug_harddisks(0);
 +void ide_unplug_all_harddisks(void)
-+{
+ {
+-    _ide_unplug_harddisks(0);
 +    int i;
 +
 +    for (i = 0; i < 4; i++)
@@ -88,10 +86,10 @@ diff -r 0e7c260e7dad hw/ide.c
  }
  
  static void ide_init2(IDEState *ide_state,
-diff -r 0e7c260e7dad hw/pc.h
---- a/hw/pc.h	Mon Jan 24 18:46:24 2011 +0000
-+++ b/hw/pc.h	Mon Jan 24 18:53:56 2011 +0000
-@@ -162,7 +162,8 @@
+diff -r 9c7c49d81b64 hw/pc.h
+--- a/hw/pc.h	Mon Mar 05 16:17:55 2012 +0000
++++ b/hw/pc.h	Wed Mar 14 14:53:24 2012 +0000
+@@ -162,7 +162,8 @@ void pci_piix3_ide_init(PCIBus *bus, Blo
                          qemu_irq *pic);
  void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
                          qemu_irq *pic);
@@ -101,10 +99,10 @@ diff -r 0e7c260e7dad hw/pc.h
  void ide_unplug_aux_harddisks(void);
  
  /* ne2000.c */
-diff -r 0e7c260e7dad hw/pci.c
---- a/hw/pci.c	Mon Jan 24 18:46:24 2011 +0000
-+++ b/hw/pci.c	Mon Jan 24 18:53:56 2011 +0000
-@@ -263,6 +263,10 @@
+diff -r 9c7c49d81b64 hw/pci.c
+--- a/hw/pci.c	Mon Mar 05 16:17:55 2012 +0000
++++ b/hw/pci.c	Wed Mar 14 14:53:24 2012 +0000
+@@ -263,6 +263,10 @@ PCIDevice *pci_register_device(PCIBus *b
      pci_dev->bus = bus;
      pci_dev->devfn = devfn;
      pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
@@ -115,7 +113,7 @@ diff -r 0e7c260e7dad hw/pci.c
      memset(pci_dev->irq_state, 0, sizeof(pci_dev->irq_state));
      pci_set_default_subsystem_id(pci_dev);
  
-@@ -838,48 +842,68 @@
+@@ -838,50 +842,70 @@ PCIDevice *pci_nic_init(PCIBus *bus, NIC
      return NULL;
  }
  
@@ -188,8 +186,8 @@ diff -r 0e7c260e7dad hw/pci.c
 +            }
 +        }
      }
-+}
-+
+ }
+ 
 +int pci_unplug_nic(int i)
 +{
 +    NICInfo *nd;
@@ -217,13 +215,15 @@ diff -r 0e7c260e7dad hw/pci.c
 +
 +    nd->used = 0;
 +    return nd->vlan->id;
- }
- 
++}
++
  typedef struct {
-diff -r 0e7c260e7dad hw/pci.h
---- a/hw/pci.h	Mon Jan 24 18:46:24 2011 +0000
-+++ b/hw/pci.h	Mon Jan 24 18:53:56 2011 +0000
-@@ -277,6 +277,7 @@
+     PCIDevice dev;
+     PCIBus *bus;
+diff -r 9c7c49d81b64 hw/pci.h
+--- a/hw/pci.h	Mon Mar 05 16:17:55 2012 +0000
++++ b/hw/pci.h	Wed Mar 14 14:53:24 2012 +0000
+@@ -277,6 +277,7 @@ PCIBus *pci_register_bus(pci_set_irq_fn 
  
  PCIDevice *pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn,
                    const char *default_model);
@@ -231,9 +231,9 @@ diff -r 0e7c260e7dad hw/pci.h
  void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len);
  uint32_t pci_data_read(void *opaque, uint32_t addr, int len);
  int pci_bus_num(PCIBus *s);
-diff -r 0e7c260e7dad hw/xen_platform.c
---- a/hw/xen_platform.c	Mon Jan 24 18:46:24 2011 +0000
-+++ b/hw/xen_platform.c	Mon Jan 24 18:53:56 2011 +0000
+diff -r 9c7c49d81b64 hw/xen_platform.c
+--- a/hw/xen_platform.c	Mon Mar 05 16:17:55 2012 +0000
++++ b/hw/xen_platform.c	Wed Mar 14 14:53:24 2012 +0000
 @@ -3,6 +3,7 @@
   * 
   * Copyright (c) 2003-2004 Intel Corp.
@@ -286,7 +286,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
  
  static void log_throttling(const char *path, void *opaque)
  {
-@@ -69,7 +84,8 @@
+@@ -69,7 +84,8 @@ static void log_throttling(const char *p
  #define BUCKET_MAX_SIZE (128*1024)
  #define BUCKET_FILL_RATE 256
  
@@ -296,7 +296,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
  {
      static unsigned available;
      static struct timespec last_refil;
-@@ -143,132 +159,259 @@
+@@ -143,132 +159,260 @@ static void throttle(unsigned count)
      available -= count;
  }
  
@@ -329,6 +329,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
 +        throttle(log_buffer_off);
 +        fprintf(logfile, "%s\n", log_buffer);
 +        log_buffer_off = 0;
++        return;
 +    }
 +
 +    if (isspace(c))
@@ -659,7 +660,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
  }
  
  static int platform_fixed_ioport_load(QEMUFile *f, void *opaque, int version_id)
-@@ -279,7 +422,7 @@
+@@ -279,7 +423,7 @@ static int platform_fixed_ioport_load(QE
          return -EINVAL;
  
      qemu_get_8s(f, &flags);
@@ -668,7 +669,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
  
      return 0;
  }
-@@ -295,10 +438,11 @@
+@@ -295,10 +439,11 @@ void platform_fixed_ioport_init(void)
      register_ioport_write(0x10, 16, 4, platform_fixed_ioport_write4, NULL);
      register_ioport_write(0x10, 16, 2, platform_fixed_ioport_write2, NULL);
      register_ioport_write(0x10, 16, 1, platform_fixed_ioport_write1, NULL);
@@ -681,7 +682,7 @@ diff -r 0e7c260e7dad hw/xen_platform.c
  }
  
  static uint32_t xen_platform_ioport_readb(void *opaque, uint32_t addr)
-@@ -314,26 +458,21 @@
+@@ -314,27 +459,22 @@ static void xen_platform_ioport_writeb(v
      val  &= 0xff;
  
      switch (addr) {
@@ -708,15 +709,16 @@ diff -r 0e7c260e7dad hw/xen_platform.c
          break;
      }
  }
-+
+ 
 +typedef struct PCIXenPlatformState
 +{
 +  PCIDevice  pci_dev;
 +} PCIXenPlatformState;
- 
++
  static void platform_ioport_map(PCIDevice *pci_dev, int region_num, uint32_t addr, uint32_t size, int type)
  {
-@@ -410,8 +549,9 @@
+     PCIXenPlatformState *d = (PCIXenPlatformState *)pci_dev;
+@@ -410,8 +550,9 @@ static int xen_pci_load(QEMUFile *f, voi
      if (version_id >= 2) {
          if (version_id == 2) {
              uint8_t flags;
@@ -727,9 +729,9 @@ diff -r 0e7c260e7dad hw/xen_platform.c
          }
          qemu_get_be64(f);
      }
-diff -r 0e7c260e7dad i386-dm/README.hvm-pv-magic-ioport-disable
---- a/i386-dm/README.hvm-pv-magic-ioport-disable	Mon Jan 24 18:46:24 2011 +0000
-+++ b/i386-dm/README.hvm-pv-magic-ioport-disable	Mon Jan 24 18:53:56 2011 +0000
+diff -r 9c7c49d81b64 i386-dm/README.hvm-pv-magic-ioport-disable
+--- a/i386-dm/README.hvm-pv-magic-ioport-disable	Mon Mar 05 16:17:55 2012 +0000
++++ b/i386-dm/README.hvm-pv-magic-ioport-disable	Wed Mar 14 14:53:24 2012 +0000
 @@ -1,70 +1,149 @@
 -MAGIC IOPORT 0x10 PROTOCOL
 +MAGIC IOPORT 0x10-0x13 DEVICE MODEL
@@ -932,10 +934,10 @@ diff -r 0e7c260e7dad i386-dm/README.hvm-pv-magic-ioport-disable
 +     | then verson 2      |                    |
 +     | unplug index       |                    |
 +
-diff -r 0e7c260e7dad net.c
---- a/net.c	Mon Jan 24 18:46:24 2011 +0000
-+++ b/net.c	Mon Jan 24 18:53:56 2011 +0000
-@@ -1987,13 +1987,36 @@
+diff -r 9c7c49d81b64 net.c
+--- a/net.c	Mon Mar 05 16:17:55 2012 +0000
++++ b/net.c	Wed Mar 14 14:53:24 2012 +0000
+@@ -1987,13 +1987,36 @@ void net_client_check(void)
      }
  }
  
@@ -977,10 +979,10 @@ diff -r 0e7c260e7dad net.c
      }
  }
 +
-diff -r 0e7c260e7dad net.h
---- a/net.h	Mon Jan 24 18:46:24 2011 +0000
-+++ b/net.h	Mon Jan 24 18:53:56 2011 +0000
-@@ -103,6 +103,7 @@
+diff -r 9c7c49d81b64 net.h
+--- a/net.h	Mon Mar 05 16:17:55 2012 +0000
++++ b/net.h	Wed Mar 14 14:53:24 2012 +0000
+@@ -103,6 +103,7 @@ void net_cleanup(void);
  int slirp_is_inited(void);
  void net_client_check(void);
  void net_tap_shutdown_all(void);
@@ -988,10 +990,10 @@ diff -r 0e7c260e7dad net.h
  void net_host_device_add(const char *device, const char *opts);
  void net_host_device_remove(int vlan_id, const char *device);
  
-diff -r 0e7c260e7dad qemu-xen.h
---- a/qemu-xen.h	Mon Jan 24 18:46:24 2011 +0000
-+++ b/qemu-xen.h	Mon Jan 24 18:53:56 2011 +0000
-@@ -46,7 +46,8 @@
+diff -r 9c7c49d81b64 qemu-xen.h
+--- a/qemu-xen.h	Mon Mar 05 16:17:55 2012 +0000
++++ b/qemu-xen.h	Wed Mar 14 14:53:24 2012 +0000
+@@ -46,7 +46,8 @@ void set_vram_mapping(void *opaque, unsi
  void unset_vram_mapping(void *opaque);
  #endif
  
