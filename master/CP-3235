@@ -1,14 +1,13 @@
 # HG changeset patch
-# Parent 6d7b357d35a23f9da7c9714c4eafa477e7ca036e
+# Parent 48bee22790af7ada8790427746ae90c536aba773
 
 [CP-3235] Allow Xen Platform PCI Device's Vendor ID, Device ID and Revision
-to be overriden using xenstore keys in vm-data. Also code the subsystem
-Device ID to follow the main Device ID rather than be hardcoded to 0x0001.
+to be overriden using xenstore keys in platform.
 
-diff -r 6d7b357d35a2 -r 3e8c0424b448 hw/xen_platform.c
---- a/hw/xen_platform.c	Mon Mar 05 16:17:58 2012 +0000
-+++ b/hw/xen_platform.c	Tue Mar 06 14:51:28 2012 +0000
-@@ -568,10 +568,10 @@ void pci_xen_platform_init(PCIBus *bus)
+diff -r 48bee22790af hw/xen_platform.c
+--- a/hw/xen_platform.c	Mon Apr 30 10:27:49 2012 +0100
++++ b/hw/xen_platform.c	Mon Apr 30 16:59:54 2012 +0100
+@@ -569,10 +569,10 @@ void pci_xen_platform_init(PCIBus *bus)
      d = (PCIXenPlatformState *)pci_register_device(
          bus, "xen-platform", sizeof(PCIXenPlatformState), -1, NULL, NULL);
      pch = (struct pci_config_header *)d->pci_dev.config;
@@ -22,20 +21,21 @@ diff -r 6d7b357d35a2 -r 3e8c0424b448 hw/xen_platform.c
      pch->api = 0;
      pch->class = 0x1; /* Storage device class */
      pch->subclass = 0x0; /* SCSI subclass */
-@@ -583,8 +583,8 @@ void pci_xen_platform_init(PCIBus *bus)
+@@ -582,11 +582,6 @@ void pci_xen_platform_init(PCIBus *bus)
+                                triggers a bug in the Geneva PV
+                                drivers. */
  
-     /* Microsoft WHQL requires non-zero subsystem IDs. */
-     /* http://www.pcisig.com/reflector/msg02205.html.  */
+-    /* Microsoft WHQL requires non-zero subsystem IDs. */
+-    /* http://www.pcisig.com/reflector/msg02205.html.  */
 -    pch->subsystem_vendor_id = pch->vendor_id; /* Duplicate vendor id.  */
 -    pch->subsystem_id        = 0x0001;         /* Hardcode sub-id as 1. */
-+    pch->subsystem_vendor_id = pch->vendor_id; /* Duplicate vendor id. */
-+    pch->subsystem_id        = pch->device_id; /* Duplicate device id. */
- 
+-
      pci_register_io_region(&d->pci_dev, 0, 0x100,
                             PCI_ADDRESS_SPACE_IO, platform_ioport_map);
-diff -r 6d7b357d35a2 -r 3e8c0424b448 qemu-xen.h
---- a/qemu-xen.h	Mon Mar 05 16:17:58 2012 +0000
-+++ b/qemu-xen.h	Tue Mar 06 14:51:28 2012 +0000
+ 
+diff -r 48bee22790af qemu-xen.h
+--- a/qemu-xen.h	Mon Apr 30 10:27:49 2012 +0100
++++ b/qemu-xen.h	Mon Apr 30 16:59:54 2012 +0100
 @@ -67,6 +67,7 @@ void xenstore_init(void);
  uint32_t xenstore_read_target(void);
  void xenstore_parse_domain_config(int domid);
@@ -44,10 +44,10 @@ diff -r 6d7b357d35a2 -r 3e8c0424b448 qemu-xen.h
  int xenstore_fd(void);
  void xenstore_process_event(void *opaque);
  void xenstore_record_dm_state(const char *state);
-diff -r 6d7b357d35a2 -r 3e8c0424b448 xenstore.c
---- a/xenstore.c	Mon Mar 05 16:17:58 2012 +0000
-+++ b/xenstore.c	Tue Mar 06 14:51:28 2012 +0000
-@@ -907,6 +907,46 @@ int xenstore_parse_disable_pf_config ()
+diff -r 48bee22790af xenstore.c
+--- a/xenstore.c	Mon Apr 30 10:27:49 2012 +0100
++++ b/xenstore.c	Mon Apr 30 16:59:54 2012 +0100
+@@ -907,6 +907,51 @@ int xenstore_parse_disable_pf_config ()
      return disable_pf;
  }
  
@@ -56,30 +56,37 @@ diff -r 6d7b357d35a2 -r 3e8c0424b448 xenstore.c
 +    char *node = NULL, *val;
 +    unsigned int len;
 +
-+    /* Defaults */
++    /* See http://www.pcidatabase.com/vendor_details.php?id=1690 */
 +    pch->vendor_id = 0x5853;
-+    pch->device_id = 0x0001;
-+    pch->revision = 1;
++    pch->subsystem_vendor_id = 0x5853;
 +
-+    if ( pasprintf(&node, "/local/domain/%u/vm-data/pf_vendor_id",domid) >= 0 ) {
-+        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
-+            pch->vendor_id = strtoul(val, NULL, 0);
-+            free(val);
-+        }
-+        free(node);
-+        node = NULL;
-+    }
-+        
-+    if ( pasprintf(&node, "/local/domain/%u/vm-data/pf_device_id",domid) >= 0 ) {
++    /* Defaults */
++    pch->device_id = 0x0001;
++    pch->subsystem_id = 0x0001;
++    pch->revision = 1;
++     
++    /* The presence of this key gates use of the others */   
++    if ( pasprintf(&node, "/local/domain/%u/platform/device_id", domid) >= 0 ) {
 +        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
 +            pch->device_id = strtoul(val, NULL, 0);
 +            free(val);
 +        }
 +        free(node);
 +        node = NULL;
++    } else {
++        return;
++    }
++
++    if ( pasprintf(&node, "/local/domain/%u/platform/subsystem_id", domid) >= 0 ) {
++        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
++            pch->subsystem_id = strtoul(val, NULL, 0);
++            free(val);
++        }
++        free(node);
++        node = NULL;
 +    }
 +        
-+    if ( pasprintf(&node, "/local/domain/%u/vm-data/pf_revision",domid) >= 0 ) {
++    if ( pasprintf(&node, "/local/domain/%u/platform/revision", domid) >= 0 ) {
 +        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
 +            pch->revision = strtoul(val, NULL, 0);
 +            free(val);
@@ -87,8 +94,6 @@ diff -r 6d7b357d35a2 -r 3e8c0424b448 xenstore.c
 +        free(node);
 +        node = NULL;
 +    }
-+
-+    fprintf(logfile, "PF: VEN=%04x DEV=%04x REV=%02x\n", pch->vendor_id, pch->device_id, pch->revision);
 +}
 +
  int xenstore_fd(void)
