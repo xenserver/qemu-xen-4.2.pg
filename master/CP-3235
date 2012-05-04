@@ -6,7 +6,7 @@ to be overriden using xenstore keys in platform.
 
 diff -r 48bee22790af hw/xen_platform.c
 --- a/hw/xen_platform.c	Mon Apr 30 10:27:49 2012 +0100
-+++ b/hw/xen_platform.c	Fri May 04 13:22:29 2012 +0100
++++ b/hw/xen_platform.c	Fri May 04 16:30:14 2012 +0100
 @@ -569,10 +569,10 @@ void pci_xen_platform_init(PCIBus *bus)
      d = (PCIXenPlatformState *)pci_register_device(
          bus, "xen-platform", sizeof(PCIXenPlatformState), -1, NULL, NULL);
@@ -35,7 +35,7 @@ diff -r 48bee22790af hw/xen_platform.c
  
 diff -r 48bee22790af qemu-xen.h
 --- a/qemu-xen.h	Mon Apr 30 10:27:49 2012 +0100
-+++ b/qemu-xen.h	Fri May 04 13:22:29 2012 +0100
++++ b/qemu-xen.h	Fri May 04 16:30:14 2012 +0100
 @@ -67,6 +67,7 @@ void xenstore_init(void);
  uint32_t xenstore_read_target(void);
  void xenstore_parse_domain_config(int domid);
@@ -46,8 +46,8 @@ diff -r 48bee22790af qemu-xen.h
  void xenstore_record_dm_state(const char *state);
 diff -r 48bee22790af xenstore.c
 --- a/xenstore.c	Mon Apr 30 10:27:49 2012 +0100
-+++ b/xenstore.c	Fri May 04 13:22:29 2012 +0100
-@@ -907,6 +907,55 @@ int xenstore_parse_disable_pf_config ()
++++ b/xenstore.c	Fri May 04 16:30:14 2012 +0100
+@@ -907,6 +907,58 @@ int xenstore_parse_disable_pf_config ()
      return disable_pf;
  }
  
@@ -67,36 +67,39 @@ diff -r 48bee22790af xenstore.c
 +     
 +    /* The presence of this key gates use of the others */   
 +    if ( pasprintf(&node, "/local/domain/%u/platform/device_id", domid) >= 0 ) {
++        char *val;
++
 +        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
 +            pch->device_id = strtoul(val, NULL, 0);
 +            free(val);
 +        }
 +        free(node);
-+        node = NULL;
-+    } else {
-+        return;
++        if ( val == NULL )
++            return;
 +    }
 +
 +    pch->subsystem_id = pch->device_id;
 +
 +    if ( pasprintf(&node, "/local/domain/%u/platform/subsystem_id", domid) >= 0 ) {
++        char *val;
++
 +        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
 +            pch->subsystem_id = strtoul(val, NULL, 0);
 +            free(val);
 +        }
 +        free(node);
-+        node = NULL;
 +    }
 +        
 +    pch->revision = 2;
 +
 +    if ( pasprintf(&node, "/local/domain/%u/platform/revision", domid) >= 0 ) {
++        char *val;
++
 +        if ( (val = xs_read(xsh, XBT_NULL, node, &len)) != NULL ) {
 +            pch->revision = strtoul(val, NULL, 0);
 +            free(val);
 +        }
 +        free(node);
-+        node = NULL;
 +    }
 +}
 +
