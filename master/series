@@ -34,6 +34,7 @@ qemu-24cf0a6e36402f3bbab1d7317de6c4d511c832e1 # vnc: no need to set force_update
 qemu-afd3216027e3b28b0e180ac99d87e981d169b91c # vnc: Fix memory allocation (wrong structure size).
 qemu-198a0039c5fca224a77e9761e2350dd9cc102ad0 # vnc: rework VncState release workflow.
 qemu-f22f5b077c164b864dae9776f63ed9e48a973fb6 # vga: fix shadow GR regression
+qemu-babd03fde68093482528010a5435c14ce9128e3f # usb-linux.c: fix buffer overflow
 
 vnc_copyrect # where does this come from?
 vnc_timer
