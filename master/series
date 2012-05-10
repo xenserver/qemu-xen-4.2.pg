@@ -103,6 +103,7 @@ vnclisten
 vnc-port
 vnc_scan_code
 vnc_xencenter_no_copyrect
+large_resolution.patch
 
 
 #
