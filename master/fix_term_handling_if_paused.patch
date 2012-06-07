@@ -1,0 +1,18 @@
+# HG changeset patch
+# Parent 3940be5a37e8d36567384e9eb19a40446edbf4d1
+
+diff -r 3940be5a37e8 i386-dm/helper2.c
+--- a/i386-dm/helper2.c	Tue May 29 08:28:32 2012 +0100
++++ b/i386-dm/helper2.c	Tue May 29 13:57:42 2012 +0100
+@@ -602,6 +602,11 @@ int main_loop(void)
+             FD_SET(xenstore_fd(), &fds);
+             if (select(xenstore_fd() + 1, &fds, NULL, NULL, NULL) > 0)
+                 xenstore_process_event(NULL);
++            if (qemu_exit_requested()) {
++                /* just exit, we already saved all disks */
++                destroy_hvm_domain();
++                exit(0);
++            }
+         }
+ 
+         xenstore_record_dm_state("running");
