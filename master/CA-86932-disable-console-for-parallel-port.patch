@@ -1,0 +1,14 @@
+# HG changeset patch
+# Parent 8a948d949838e7b173d698e940992a50e45a36fd
+diff -r 8a948d949838 -r 45280067ff09 vl.c
+--- a/vl.c	Thu Jul 26 14:33:07 2012 +0100
++++ b/vl.c	Thu Jul 26 14:34:18 2012 +0100
+@@ -4961,7 +4961,7 @@ int main(int argc, char **argv, char **e
+         serial_devices[i] = NULL;
+     serial_device_index = 0;
+ 
+-    parallel_devices[0] = "vc:80Cx24C";
++    parallel_devices[0] = "null";
+     for(i = 1; i < MAX_PARALLEL_PORTS; i++)
+         parallel_devices[i] = NULL;
+     parallel_device_index = 0;
