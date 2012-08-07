@@ -64,6 +64,8 @@ cirrus-fix-windows-raster-ops # patches vga-clear-fb-on-switch-to-graphic
 unplug-version-2
 CA-46806-validate-map-cache-entries
 CA-55725-retry-after-listen-fail
+CP-3235
+product-nr-3-blacklist
 
 #
 # Build system
@@ -136,5 +138,4 @@ msitranslate_default_off.diff
 fix-vnc-overflow
 EA-1012-rpm-names
 cve-2012-0029-qemu-xen-unstable.patch # Heap buffer overflow vulnerability
-CP-3235
 fix_term_handling_if_paused.patch # upstream does not present same problem

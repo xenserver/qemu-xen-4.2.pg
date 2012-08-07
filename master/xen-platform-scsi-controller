@@ -1,9 +1,9 @@
-diff -r 474950d1d8bb hw/xen_platform.c
---- a/hw/xen_platform.c	Fri Sep 19 18:02:11 2008 +0100
-+++ b/hw/xen_platform.c	Fri Sep 19 18:20:41 2008 +0100
-@@ -236,8 +236,8 @@
+diff -r 948d0526a672 hw/xen_platform.c
+--- a/hw/xen_platform.c	Tue Aug 07 09:55:52 2012 +0100
++++ b/hw/xen_platform.c	Tue Aug 07 09:56:19 2012 +0100
+@@ -574,8 +574,8 @@ void pci_xen_platform_init(PCIBus *bus)
+ 
      pch->command = 3; /* IO and memory access */
-     pch->revision = 1;
      pch->api = 0;
 -    pch->subclass = 0x80; /* Other */
 -    pch->class = 0xff; /* Unclassified device class */

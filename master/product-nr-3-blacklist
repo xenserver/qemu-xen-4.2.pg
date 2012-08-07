@@ -1,0 +1,112 @@
+# HG changeset patch
+# Parent b7e1a35fbd8dcb664abcefc0fc8ff175e32f3b9b
+
+diff -r b7e1a35fbd8d xenstore.c
+--- a/xenstore.c	Tue Jul 31 10:24:30 2012 +0100
++++ b/xenstore.c	Wed Aug 01 17:58:40 2012 +0100
+@@ -907,6 +907,9 @@ int xenstore_parse_disable_pf_config ()
+     return disable_pf;
+ }
+ 
++static uint16_t platform_device_id;
++static uint8_t  platform_revision;
++
+ void xenstore_parse_pf_config(struct pci_config_header *pch)
+ {
+     char *node, *val;
+@@ -932,7 +935,7 @@ void xenstore_parse_pf_config(struct pci
+         }
+         free(node);
+         if ( val == NULL )
+-            return;
++            goto done;
+     }
+ 
+     pch->subsystem_id = pch->device_id;
+@@ -960,6 +963,13 @@ void xenstore_parse_pf_config(struct pci
+         }
+         free(node);
+     }
++
++done:
++    fprintf(logfile, "xen platform: device_id=%04X revision=%02X\n",
++            pch->device_id, pch->revision);
++
++    platform_device_id = pch->device_id;
++    platform_revision = pch->revision;
+ }
+ 
+ int xenstore_fd(void)
+@@ -1085,11 +1095,8 @@ int
+ xenstore_pv_driver_build_blacklisted(uint16_t product_nr,
+                                      uint32_t build_nr)
+ {
+-    char *buf = NULL;
+-    char *tmp;
+     const char *product;
+ 
+-    switch (product_nr) {
+     /*
+      * In qemu-xen-unstable, this is the master registry of product
+      * numbers.  If you need a new product number allocating, please
+@@ -1103,23 +1110,48 @@ xenstore_pv_driver_build_blacklisted(uin
+      * During development, you may use the product ID 0xffff to
+      * indicate a driver which is yet to be released.
+      */
+-    case 1: product = "xensource-windows";  break; /* Citrix */
+-    case 2: product = "gplpv-windows";      break; /* James Harper */
+-    case 0xffff: product = "experimental";  break;
++
++    switch (product_nr) {
++    case 1:
++    case 2:
++    case 0xffff: {
++        char *buf = NULL;
++        char *tmp;
++
++        switch (product_nr) {
++        case 1: product = "xensource-windows";  break; /* Citrix */
++        case 2: product = "gplpv-windows";      break; /* James Harper */
++        case 0xffff: product = "experimental";  break;
++        }
++
++        if (asprintf(&buf, "/mh/driver-blacklist/%s/%d", product, build_nr) < 0)
++            return 0;
++        tmp = xs_read(xsh, XBT_NULL, buf, NULL);
++        free(tmp);
++        free(buf);
++        if (tmp == NULL)
++            return 0;
++        else
++            return 1;
++    }
++    case 3: {
++        uint16_t device_id;
++        uint8_t revision;
++
++        device_id = (build_nr >> 8) & 0xffff;
++        revision = build_nr & 0xff;
++
++        if (device_id != platform_device_id ||
++            revision < platform_revision)
++            return 1;
++        else
++            return 0;
++    }        
+     default:
+         /* Don't know what product this is -> we can't blacklist
+          * it. */
+         return 0;
+     }
+-    if (asprintf(&buf, "/mh/driver-blacklist/%s/%d", product, build_nr) < 0)
+-        return 0;
+-    tmp = xs_read(xsh, XBT_NULL, buf, NULL);
+-    free(tmp);
+-    free(buf);
+-    if (tmp == NULL)
+-        return 0;
+-    else
+-        return 1;
+ }
+ 
+ void xenstore_record_dm_state(const char *state)

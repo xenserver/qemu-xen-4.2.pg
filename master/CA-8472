@@ -1,7 +1,7 @@
-diff -r 0d13d7285e2a hw/xen_platform.c
---- a/hw/xen_platform.c	Tue Sep 23 13:52:17 2008 +0100
-+++ b/hw/xen_platform.c	Tue Sep 23 13:54:01 2008 +0100
-@@ -253,7 +253,10 @@ void pci_xen_platform_init(PCIBus *bus)
+diff -r ef8d96d449aa hw/xen_platform.c
+--- a/hw/xen_platform.c	Tue Aug 07 09:56:28 2012 +0100
++++ b/hw/xen_platform.c	Tue Aug 07 09:56:35 2012 +0100
+@@ -577,7 +577,10 @@ void pci_xen_platform_init(PCIBus *bus)
      pch->class = 0x1; /* Storage device class */
      pch->subclass = 0x0; /* SCSI subclass */
      pch->header_type = 0;
@@ -11,5 +11,5 @@ diff -r 0d13d7285e2a hw/xen_platform.c
 +                               triggers a bug in the Geneva PV
 +                               drivers. */
  
-     /* Microsoft WHQL requires non-zero subsystem IDs. */
-     /* http://www.pcisig.com/reflector/msg02205.html.  */
+     pci_register_io_region(&d->pci_dev, 0, 0x100,
+                            PCI_ADDRESS_SPACE_IO, platform_ioport_map);
