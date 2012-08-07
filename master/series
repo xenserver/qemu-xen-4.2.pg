@@ -139,3 +139,4 @@ fix-vnc-overflow
 EA-1012-rpm-names
 cve-2012-0029-qemu-xen-unstable.patch # Heap buffer overflow vulnerability
 fix_term_handling_if_paused.patch # upstream does not present same problem
+constant_devfn_for_nic
