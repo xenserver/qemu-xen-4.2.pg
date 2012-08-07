@@ -1,0 +1,119 @@
+# HG changeset patch
+# Parent b36ce4c6fce065fc27bd2e1ee3e6fc46bf1aede5
+
+Derive NIC device/function number from vif number.
+Modify NIC unplug accordingly.
+
+diff -r b36ce4c6fce0 hw/pc.c
+--- a/hw/pc.c	Tue Aug 07 09:57:48 2012 +0100
++++ b/hw/pc.c	Tue Aug 07 15:01:45 2012 +0100
+@@ -1081,7 +1081,7 @@ vga_bios_error:
+         if (!pci_enabled || (nd->model && strcmp(nd->model, "ne2k_isa") == 0))
+             pc_init_ne2k_isa(nd, i8259);
+         else
+-            pci_nic_init(pci_bus, nd, -1, "ne2k_pci");
++            pci_nic_init(pci_bus, nd, nd->devfn > 0 ? nd->devfn : -1, "ne2k_pci");
+     }
+ 
+     qemu_system_hot_add_init();
+diff -r b36ce4c6fce0 hw/pci.c
+--- a/hw/pci.c	Tue Aug 07 09:57:48 2012 +0100
++++ b/hw/pci.c	Tue Aug 07 15:01:45 2012 +0100
+@@ -877,16 +877,20 @@ void pci_unplug_all_netifs(void)
+     }
+ }
+ 
+-int pci_unplug_nic(int i)
++int pci_unplug_nic(int devfn)
+ {
+     NICInfo *nd;
+     PCIDevice *pci_dev;
++    int index;
+ 
+-    if (i >= nb_nics)
++    nd = NULL;
++    for (index = 0; index < nb_nics; index++)
++        if (nd_table[index].devfn == devfn)
++            nd = &nd_table[index];
++
++    if (nd == NULL)
+         return -1;
+ 
+-    nd = &nd_table[i];
+-
+     if (!nd->used)
+         return -1;
+ 
+diff -r b36ce4c6fce0 hw/xen_platform.c
+--- a/hw/xen_platform.c	Tue Aug 07 09:57:48 2012 +0100
++++ b/hw/xen_platform.c	Tue Aug 07 15:01:45 2012 +0100
+@@ -245,12 +245,16 @@ version_2_unplug(uint8_t type, uint8_t i
+ 
+     switch (type) {
+     case UNPLUG_TYPE_IDE:
++        fprintf(logfile, "UNPLUG: IDE\n");
++
+         ide_unplug_harddisk(index);
+         break;
+     case UNPLUG_TYPE_NIC: {
+         int id;
+ 
+-        if ((id = pci_unplug_nic(index)) >= 0)
++        fprintf(logfile, "UNPLUG: NIC\n");
++
++        if ((id = pci_unplug_nic((4+index)*8)) >= 0)
+             net_tap_shutdown_vlan(id);
+ 
+         break;
+diff -r b36ce4c6fce0 net.c
+--- a/net.c	Tue Aug 07 09:57:48 2012 +0100
++++ b/net.c	Tue Aug 07 15:01:45 2012 +0100
+@@ -1592,11 +1592,28 @@ static int nic_get_free_idx(void)
+     int index;
+ 
+     for (index = 0; index < MAX_NICS; index++)
+-        if (!nd_table[index].used)
++        if (!nd_table[index].used) {
++            nd_table[index].devfn = -1;
+             return index;
++        }
+     return -1;
+ }
+ 
++static void nic_tap_fix_devfn(VLANState *vlan, const char *ifname)
++{
++    int index;
++    unsigned tap, vif;
++
++    if (sscanf(ifname, "tap%u.%u", &tap, &vif) != 2 || vif >= 256)
++        return;
++
++    for (index = 0; index < MAX_NICS; index++)
++        if (nd_table[index].used && nd_table[index].vlan == vlan) {
++            nd_table[index].devfn = (4+vif)*8;
++            break;
++        }
++}
++
+ void qemu_check_nic_model(NICInfo *nd, const char *model)
+ {
+     const char *models[2];
+@@ -1767,6 +1784,7 @@ int net_client_init(const char *device, 
+                 pstrcpy(script_arg, sizeof(script_arg), "");
+             }
+             ret = net_tap_init(vlan, device, name, ifname, setup_script, down_script, script_arg);
++            nic_tap_fix_devfn(vlan, ifname);
+         }
+     } else
+ #endif
+diff -r b36ce4c6fce0 net.h
+--- a/net.h	Tue Aug 07 09:57:48 2012 +0100
++++ b/net.h	Tue Aug 07 15:01:45 2012 +0100
+@@ -67,6 +67,7 @@ struct NICInfo {
+     VLANState *vlan;
+     void *private;
+     int used;
++    int devfn;
+ };
+ 
+ extern int nb_nics;
