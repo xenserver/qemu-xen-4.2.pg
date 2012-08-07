@@ -1,0 +1,38 @@
+# HG changeset patch
+# Parent d1d94cc4183e936b52e64b78444b1d5e3b64fdd9
+diff -r d1d94cc4183e -r 6f6c9bae1725 hw/xen_machine_fv.c
+--- a/hw/xen_machine_fv.c	Tue Aug 07 12:33:09 2012 +0100
++++ b/hw/xen_machine_fv.c	Tue Aug 07 12:35:22 2012 +0100
+@@ -160,6 +160,7 @@ uint8_t *qemu_map_cache(target_phys_addr
+ 
+     if (!test_bit(address_offset>>XC_PAGE_SHIFT, entry->valid_mapping)) {
+         last_address_index = ~0UL;
++        last_address_vaddr = NULL;
+         memset(last_valid_mapping, 0, sizeof(last_valid_mapping));
+         return NULL;
+     }
+@@ -185,11 +186,6 @@ void qemu_invalidate_entry(uint8_t *buff
+     unsigned long paddr_index;
+     int found = 0;
+     
+-    if (last_address_vaddr == buffer) {
+-        last_address_index =  ~0UL;
+-        memset(last_valid_mapping, 0, sizeof(last_valid_mapping));
+-    }
+-
+     TAILQ_FOREACH(reventry, &locked_entries, next) {
+         if (reventry->vaddr_req == buffer) {
+             paddr_index = reventry->paddr_index;
+@@ -207,6 +203,12 @@ void qemu_invalidate_entry(uint8_t *buff
+     TAILQ_REMOVE(&locked_entries, reventry, next);
+     qemu_free(reventry);
+ 
++    if (paddr_index == last_address_index) {
++        last_address_index =  ~0UL;
++        last_address_vaddr = NULL;
++        memset(last_valid_mapping, 0, sizeof(last_valid_mapping));
++    }
++
+     entry = &mapcache_entry[paddr_index % nr_buckets];
+     while (entry && entry->paddr_index != paddr_index) {
+         pentry = entry;
