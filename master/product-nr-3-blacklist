@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent b7e1a35fbd8dcb664abcefc0fc8ff175e32f3b9b
+# Parent 67dca6cd3fe4183312db8873076882d2f91c85ea
 
-diff -r b7e1a35fbd8d xenstore.c
---- a/xenstore.c	Tue Jul 31 10:24:30 2012 +0100
-+++ b/xenstore.c	Wed Aug 01 17:58:40 2012 +0100
-@@ -907,6 +907,9 @@ int xenstore_parse_disable_pf_config ()
+diff -r 67dca6cd3fe4 xenstore.c
+--- a/xenstore.c	Tue Sep 25 13:47:11 2012 +0100
++++ b/xenstore.c	Tue Sep 25 16:11:23 2012 +0100
+@@ -789,6 +789,9 @@ int xenstore_parse_disable_pf_config ()
      return disable_pf;
  }
  
@@ -14,7 +14,7 @@ diff -r b7e1a35fbd8d xenstore.c
  void xenstore_parse_pf_config(struct pci_config_header *pch)
  {
      char *node, *val;
-@@ -932,7 +935,7 @@ void xenstore_parse_pf_config(struct pci
+@@ -814,7 +817,7 @@ void xenstore_parse_pf_config(struct pci
          }
          free(node);
          if ( val == NULL )
@@ -23,7 +23,7 @@ diff -r b7e1a35fbd8d xenstore.c
      }
  
      pch->subsystem_id = pch->device_id;
-@@ -960,6 +963,13 @@ void xenstore_parse_pf_config(struct pci
+@@ -842,6 +845,13 @@ void xenstore_parse_pf_config(struct pci
          }
          free(node);
      }
@@ -37,7 +37,7 @@ diff -r b7e1a35fbd8d xenstore.c
  }
  
  int xenstore_fd(void)
-@@ -1085,11 +1095,8 @@ int
+@@ -1011,11 +1021,8 @@ int
  xenstore_pv_driver_build_blacklisted(uint16_t product_nr,
                                       uint32_t build_nr)
  {
@@ -49,7 +49,7 @@ diff -r b7e1a35fbd8d xenstore.c
      /*
       * In qemu-xen-unstable, this is the master registry of product
       * numbers.  If you need a new product number allocating, please
-@@ -1103,23 +1110,48 @@ xenstore_pv_driver_build_blacklisted(uin
+@@ -1029,23 +1036,51 @@ xenstore_pv_driver_build_blacklisted(uin
       * During development, you may use the product ID 0xffff to
       * indicate a driver which is yet to be released.
       */
@@ -86,6 +86,9 @@ diff -r b7e1a35fbd8d xenstore.c
 +
 +        device_id = (build_nr >> 8) & 0xffff;
 +        revision = build_nr & 0xff;
++
++        if (device_id == 0)
++            return 0;
 +
 +        if (device_id != platform_device_id ||
 +            revision < platform_revision)
