@@ -1,6 +1,27 @@
 # HG changeset patch
 # Parent 67dca6cd3fe4183312db8873076882d2f91c85ea
 
+Claim product number 3 for the new PV drivers and introduce
+a new blakclisting scheme.
+
+New PV drivers write a 'build number' that is actually a
+combination of the platform PCI device ID and most recent
+revision ID to which they are coded to bind to.
+Thus if the actual platform PCI device does not match, or 
+is a newer revision then the PV drivers will not bind. In
+this case we want to prevent unplug of emulated devices
+to avoid a VM crash due to lack of critical device (such
+as the system disk).
+
+Update:
+
+Unfortunately after coding and deploying the new blacklisting
+patch it was discovered the linux PVonHVM drivers have already
+claimed product number 3 without registering an interest so
+we workaround this by ignoring build numbers below 256.
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+
 diff -r 67dca6cd3fe4 xenstore.c
 --- a/xenstore.c	Tue Sep 25 13:47:11 2012 +0100
 +++ b/xenstore.c	Tue Sep 25 16:11:23 2012 +0100

@@ -1,5 +1,11 @@
 # HG changeset patch
 # Parent add81cce64521882787a85534066f3aa5fc7eeb9
+
+Claim product number 4 and don't do the linux PVonHVM
+workaround in this case.
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+
 diff -r add81cce6452 -r 645d4eac92e9 xenstore.c
 --- a/xenstore.c	Tue Sep 25 16:11:32 2012 +0100
 +++ b/xenstore.c	Tue Oct 02 11:57:32 2012 +0100

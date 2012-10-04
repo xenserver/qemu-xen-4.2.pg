@@ -1,0 +1,83 @@
+# HG changeset patch
+# Parent 51e561958f11d50aacf4703dfe4c1806ded04a00
+
+Allow blacklisting of product number 1 (legacy PV drivers) when the VM
+has the new device id.
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+
+diff -r 51e561958f11 -r 528e63732d94 xenstore.c
+--- a/xenstore.c	Thu Oct 04 11:37:27 2012 +0100
++++ b/xenstore.c	Thu Oct 04 13:12:50 2012 +0100
+@@ -1096,6 +1096,7 @@ xenstore_pv_driver_build_blacklisted(uin
+                                      uint32_t build_nr)
+ {
+     const char *product;
++    int blacklist = 0;
+ 
+     /*
+      * In qemu-xen-unstable, this is the master registry of product
+@@ -1124,16 +1125,27 @@ xenstore_pv_driver_build_blacklisted(uin
+         case 0xffff: product = "experimental";  break;
+         }
+ 
+-        if (asprintf(&buf, "/mh/driver-blacklist/%s/%d", product, build_nr) < 0)
+-            return 0;
+-        tmp = xs_read(xsh, XBT_NULL, buf, NULL);
+-        free(tmp);
+-        free(buf);
+-        if (tmp == NULL)
+-            return 0;
+-        else
+-            return 1;
++        if (asprintf(&buf, "/mh/driver-blacklist/%s/%d", product, build_nr) >= 0) {
++            tmp = xs_read(xsh, XBT_NULL, buf, NULL);
++            free(tmp);
++            free(buf);
++            if (tmp != NULL)
++                blacklist = 1;
++        }
++
++        break;
+     }
++    default:
++        break;
++    }
++
++    switch (product_nr) {
++    case 1:
++        if (platform_device_id != 0x0001)
++            blacklist = 1;
++
++        break;
++
+     case 3:
+     case 4: {
+         uint16_t device_id;
+@@ -1143,19 +1155,19 @@ xenstore_pv_driver_build_blacklisted(uin
+         revision = build_nr & 0xff;
+ 
+         if (product_nr == 3 && device_id == 0)
+-            return 0;
++            break;
+ 
+         if (device_id != platform_device_id ||
+             revision < platform_revision)
+-            return 1;
+-        else
+-            return 0;
++            blacklist = 1;
++
++        break;
+     }        
+     default:
+-        /* Don't know what product this is -> we can't blacklist
+-         * it. */
+-        return 0;
++        break;
+     }
++
++    return blacklist;
+ }
+ 
+ void xenstore_record_dm_state(const char *state)
