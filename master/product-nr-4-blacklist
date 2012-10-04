@@ -1,0 +1,23 @@
+# HG changeset patch
+# Parent add81cce64521882787a85534066f3aa5fc7eeb9
+diff -r add81cce6452 -r 645d4eac92e9 xenstore.c
+--- a/xenstore.c	Tue Sep 25 16:11:32 2012 +0100
++++ b/xenstore.c	Tue Oct 02 11:57:32 2012 +0100
+@@ -1134,14 +1134,15 @@ xenstore_pv_driver_build_blacklisted(uin
+         else
+             return 1;
+     }
+-    case 3: {
++    case 3:
++    case 4: {
+         uint16_t device_id;
+         uint8_t revision;
+ 
+         device_id = (build_nr >> 8) & 0xffff;
+         revision = build_nr & 0xff;
+ 
+-        if (device_id == 0)
++        if (product_nr == 3 && device_id == 0)
+             return 0;
+ 
+         if (device_id != platform_device_id ||

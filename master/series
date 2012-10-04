@@ -66,6 +66,7 @@ CA-46806-validate-map-cache-entries
 CA-55725-retry-after-listen-fail
 CP-3235
 product-nr-3-blacklist
+product-nr-4-blacklist
 
 #
 # Build system
