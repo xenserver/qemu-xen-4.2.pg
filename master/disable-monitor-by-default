@@ -1,0 +1,28 @@
+Disable qemu monitor by default.  The qemu monitor is an overly
+powerful feature which must be protected from untrusted (guest)
+administrators.
+
+Neither xl nor xend expect qemu to produce this monitor unless it is
+explicitly requested.
+
+This is a security problem, XSA-19.  Previously it was CVE-2007-0998
+in Red Hat but we haven't dealt with it in upstream.  We hope to have
+a new CVE for it here but we don't have one yet.
+
+Signed-off-by: Ian Jackson <ian.jackson@eu.citrix.com>
+
+committer: Ian Jackson <Ian.Jackson@eu.citrix.com>
+
+diff -r 731c5ecbd9c6 -r d4e677607aab vl.c
+--- a/vl.c	Wed Sep 05 12:32:15 2012 +0100
++++ b/vl.c	Thu Sep 06 17:05:30 2012 +0100
+@@ -4920,7 +4920,7 @@ int main(int argc, char **argv, char **e
+     kernel_cmdline = "";
+     cyls = heads = secs = 0;
+     translation = BIOS_ATA_TRANSLATION_AUTO;
+-    monitor_device = "vc:80Cx24C";
++    monitor_device = "null";
+ 
+     serial_devices[0] = "vc:80Cx24C";
+     for(i = 1; i < MAX_SERIAL_PORTS; i++)
+

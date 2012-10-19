@@ -44,6 +44,7 @@ vnc_update_policy # where does this come from?
 vnc_refresh_vnc_disconnect # not fixed this way upstream
 qemu-5d95ac5b6475c3b6b0e36b5f04de49bba88b3e59 # vnc: fix use after free
 qemu-83755c173f4608764e3ee92428247d1c5e962e6a # vnc_refresh: return if vd->timer is NULL
+disable-monitor-by-default
 
 #
 # to go upstream
