@@ -1,6 +1,6 @@
-diff -r e0605905cabc Makefile.target
---- a/Makefile.target	Tue Mar 29 14:57:14 2011 +0100
-+++ b/Makefile.target	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 Makefile.target
+--- a/Makefile.target	Wed Dec 19 15:22:14 2012 +0000
++++ b/Makefile.target	Wed Dec 19 15:22:16 2012 +0000
 @@ -503,7 +503,7 @@ endif #CONFIG_BSD_USER
  # System emulator target
  ifndef CONFIG_USER_ONLY
@@ -10,9 +10,9 @@ diff -r e0605905cabc Makefile.target
  # virtio has to be here due to weird dependency between PCI and virtio-net.
  # need to fix this properly
  OBJS+=virtio.o virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o
-diff -r e0605905cabc block-raw-posix.c
---- a/block-raw-posix.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/block-raw-posix.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 block-raw-posix.c
+--- a/block-raw-posix.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/block-raw-posix.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -32,6 +32,7 @@
  #ifdef CONFIG_AIO
  #include "posix-aio-compat.h"
@@ -41,9 +41,9 @@ diff -r e0605905cabc block-raw-posix.c
      }
      s->fd = fd;
      s->aligned_buf = NULL;
-diff -r e0605905cabc hw/hw.h
---- a/hw/hw.h	Tue Mar 29 14:57:14 2011 +0100
-+++ b/hw/hw.h	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 hw/hw.h
+--- a/hw/hw.h	Wed Dec 19 15:22:14 2012 +0000
++++ b/hw/hw.h	Wed Dec 19 15:22:16 2012 +0000
 @@ -34,6 +34,7 @@ QEMUFile *qemu_fopen_ops(void *opaque, Q
                           QEMUFileCloseFunc *close,
                           QEMUFileRateLimit *rate_limit);
@@ -52,9 +52,9 @@ diff -r e0605905cabc hw/hw.h
  QEMUFile *qemu_fopen_socket(int fd);
  QEMUFile *qemu_popen(FILE *popen_file, const char *mode);
  QEMUFile *qemu_popen_cmd(const char *command, const char *mode);
-diff -r e0605905cabc hw/piix4acpi.c
---- a/hw/piix4acpi.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/hw/piix4acpi.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 hw/piix4acpi.c
+--- a/hw/piix4acpi.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/hw/piix4acpi.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -28,6 +28,7 @@
  #include "pci.h"
  #include "sysemu.h"
@@ -62,8 +62,8 @@ diff -r e0605905cabc hw/piix4acpi.c
 +#include "privsep.h"
  #include "battery_mgmt.h"
  #include "qemu-log.h"
- 
-@@ -855,7 +856,7 @@ void acpi_php_add(int devfn)
+ #include "qemu-timer.h"
+@@ -890,7 +891,7 @@ void acpi_php_add(int devfn)
              sprintf(ret_str, "wrong bdf or vdevfn");
  
          if ( strlen(ret_str) > 0 )
@@ -72,7 +72,7 @@ diff -r e0605905cabc hw/piix4acpi.c
  
          return;
      }
-@@ -886,7 +887,7 @@ void acpi_php_add(int devfn)
+@@ -921,7 +922,7 @@ void acpi_php_add(int devfn)
  
      /* tell Control panel which devfn for the new pass-throgh dev */
      sprintf(ret_str, "0x%02x", devfn);
@@ -81,9 +81,9 @@ diff -r e0605905cabc hw/piix4acpi.c
  
      /* signal the CP ACPI hot insert done */
      xenstore_record_dm_state("pci-inserted");
-diff -r e0605905cabc i386-dm/helper2.c
---- a/i386-dm/helper2.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/i386-dm/helper2.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 i386-dm/helper2.c
+--- a/i386-dm/helper2.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/i386-dm/helper2.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -44,6 +44,7 @@
  #include <signal.h>
  #include <assert.h>
@@ -188,9 +188,9 @@ diff -r e0605905cabc i386-dm/helper2.c
 +    else
 +        fprintf(logfile, "Issued domain %d poweroff\n", domid);
  }
-diff -r e0605905cabc keymaps.c
---- a/keymaps.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/keymaps.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 keymaps.c
+--- a/keymaps.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/keymaps.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -22,6 +22,8 @@
   * THE SOFTWARE.
   */
@@ -222,9 +222,9 @@ diff -r e0605905cabc keymaps.c
  	return 0;
      }
      for(;;) {
-diff -r e0605905cabc privsep.c
+diff -r 31e36db30179 privsep.c
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/privsep.c	Tue Mar 29 17:35:45 2011 +0100
++++ b/privsep.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -0,0 +1,1140 @@
 +/* Privilege separation.  Closely based on OpenBSD syslogd's
 + * privsep, which is:
@@ -1366,9 +1366,9 @@ diff -r e0605905cabc privsep.c
 +        return NULL;
 +}
 +
-diff -r e0605905cabc privsep.h
+diff -r 31e36db30179 privsep.h
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/privsep.h	Tue Mar 29 17:35:45 2011 +0100
++++ b/privsep.h	Wed Dec 19 15:22:16 2012 +0000
 @@ -0,0 +1,20 @@
 +#ifndef PRIVSEP_H
 +#define PRIVSEP_H
@@ -1390,11 +1390,11 @@ diff -r e0605905cabc privsep.h
 +char* privsep_read_dm(char *subpath);
 +
 +#endif
-diff -r e0605905cabc qemu-xen.h
---- a/qemu-xen.h	Tue Mar 29 14:57:14 2011 +0100
-+++ b/qemu-xen.h	Tue Mar 29 17:35:45 2011 +0100
-@@ -69,12 +69,10 @@ void xenstore_parse_domain_config(int do
- int xenstore_parse_disable_pf_config(void);
+diff -r 31e36db30179 qemu-xen.h
+--- a/qemu-xen.h	Wed Dec 19 15:22:14 2012 +0000
++++ b/qemu-xen.h	Wed Dec 19 15:22:16 2012 +0000
+@@ -70,12 +70,10 @@ int xenstore_parse_disable_pf_config(voi
+ void xenstore_parse_pf_config(struct pci_config_header *pch);
  int xenstore_fd(void);
  void xenstore_process_event(void *opaque);
 -void xenstore_record_dm(const char *subpath, const char *state);
@@ -1406,7 +1406,7 @@ diff -r e0605905cabc qemu-xen.h
  int store_dev_info(const char *devName, int domid,
                     CharDriverState *cState, const char *storeString);
  
-@@ -121,7 +119,6 @@ int xenstore_write(const char *path, con
+@@ -122,7 +120,6 @@ int xenstore_write(const char *path, con
    * at least when it comes to running our own frontends
    */
  
@@ -1414,7 +1414,7 @@ diff -r e0605905cabc qemu-xen.h
  char *xenstore_vm_read(int domid, const char *key, unsigned int *len);
  char *xenstore_device_model_read(int domid, const char *key, unsigned int *len);
  char *xenstore_read_battery_data(int battery_status);
-@@ -134,6 +131,7 @@ void xenstore_dm_finished_startup(void);
+@@ -135,6 +132,7 @@ void xenstore_dm_finished_startup(void);
  void xenstore_set_device_locked(BlockDriverState *bs);
  void xenstore_set_guest_clipboard(const char *text, size_t len);
  unsigned int xenstore_get_cores_per_socket(int domid);
@@ -1422,9 +1422,9 @@ diff -r e0605905cabc qemu-xen.h
  
  /* xenfbfront.c */
  int xenfb_pv_display_init(DisplayState *ds);
-diff -r e0605905cabc savevm.c
---- a/savevm.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/savevm.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 savevm.c
+--- a/savevm.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/savevm.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -327,6 +327,28 @@ fail:
      return NULL;
  }
@@ -1454,9 +1454,9 @@ diff -r e0605905cabc savevm.c
  typedef struct QEMUFileBdrv
  {
      BlockDriverState *bs;
-diff -r e0605905cabc vl.c
---- a/vl.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/vl.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 vl.c
+--- a/vl.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/vl.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -48,6 +48,7 @@
  #include "hw/xen.h"
  #include <stdlib.h>
@@ -1489,7 +1489,7 @@ diff -r e0605905cabc vl.c
      const char *run_as = NULL;
      char *crashdump_dir = NULL;
      long long crashdump_quota = 0;
-@@ -5647,6 +5651,9 @@ geometry_error:
+@@ -5646,6 +5650,9 @@ geometry_error:
              case QEMU_OPTION_chroot:
                  chroot_dir = optarg;
                  break;
@@ -1499,7 +1499,7 @@ diff -r e0605905cabc vl.c
              case QEMU_OPTION_runas:
                  run_as = optarg;
                  break;
-@@ -5950,6 +5957,8 @@ geometry_error:
+@@ -5949,6 +5956,8 @@ geometry_error:
          setup_crashdump(crashdump_dir, crashdump_quota);
      }
  
@@ -1508,7 +1508,7 @@ diff -r e0605905cabc vl.c
  #ifndef _WIN32
  #ifndef CONFIG_DM
      /* must be after terminal init, SDL library changes signal handlers */
-@@ -6255,6 +6264,17 @@ geometry_error:
+@@ -6254,6 +6263,17 @@ geometry_error:
          close(fd);
      }
  
@@ -1526,9 +1526,9 @@ diff -r e0605905cabc vl.c
      main_loop();
      quit_timers();
      net_cleanup();
-diff -r e0605905cabc xen-vl-extra.c
---- a/xen-vl-extra.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/xen-vl-extra.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 xen-vl-extra.c
+--- a/xen-vl-extra.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/xen-vl-extra.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -8,6 +8,7 @@
   * there is only one place where this file is included. */
  
@@ -1546,9 +1546,9 @@ diff -r e0605905cabc xen-vl-extra.c
      
      /* ??? Should this occur after vm_stop?  */
      qemu_aio_flush();
-diff -r e0605905cabc xenstore.c
---- a/xenstore.c	Tue Mar 29 14:57:14 2011 +0100
-+++ b/xenstore.c	Tue Mar 29 17:35:45 2011 +0100
+diff -r 31e36db30179 xenstore.c
+--- a/xenstore.c	Wed Dec 19 15:22:14 2012 +0000
++++ b/xenstore.c	Wed Dec 19 15:22:16 2012 +0000
 @@ -14,6 +14,7 @@
  #include "block_int.h"
  #include <unistd.h>
@@ -1612,7 +1612,7 @@ diff -r e0605905cabc xenstore.c
  }
   
  #define UWAIT_MAX (30*1000000) /* thirty seconds */
-@@ -734,6 +720,7 @@ void xenstore_parse_domain_config(int hv
+@@ -725,6 +711,7 @@ void xenstore_parse_domain_config(int hv
              if (!strcmp(danger_type, "cdrom") || !strcmp(danger_type, "floppy")) {
                  if (pasprintf(&buf, "%s/params", bpath) != -1) {
                      char *buf2, *frontend;
@@ -1620,7 +1620,7 @@ diff -r e0605905cabc xenstore.c
                      xs_watch(xsh, buf, dev);
                      asprintf(&buf2, "%s/frontend", bpath);
                      frontend = xs_read(xsh, XBT_NULL, buf2, &len);
-@@ -976,7 +963,7 @@ static void xenstore_process_logdirty_ev
+@@ -1032,7 +1019,7 @@ static void xenstore_process_logdirty_ev
      }
  
      /* Ack that we've service the command */
@@ -1629,7 +1629,7 @@ diff -r e0605905cabc xenstore.c
  
      free(act);
  out:
-@@ -988,21 +975,14 @@ out:
+@@ -1044,21 +1031,14 @@ out:
  /* Accept state change commands from the control tools */
  static void xenstore_process_dm_command_event(void)
  {
@@ -1654,7 +1654,7 @@ diff -r e0605905cabc xenstore.c
      if (!strncmp(command, "save", len)) {
          fprintf(logfile, "dm-command: pause and save state\n");
          xen_pause_requested = 1;
-@@ -1010,43 +990,28 @@ static void xenstore_process_dm_command_
+@@ -1066,43 +1046,28 @@ static void xenstore_process_dm_command_
          fprintf(logfile, "dm-command: continue after state save\n");
          xen_pause_requested = 0;
      } else if (!strncmp(command, "usb-add", len)) {
@@ -1704,7 +1704,7 @@ diff -r e0605905cabc xenstore.c
          if (!par)
              goto out;
  
-@@ -1055,12 +1020,7 @@ static void xenstore_process_dm_command_
+@@ -1111,12 +1076,7 @@ static void xenstore_process_dm_command_
      } else if (!strncmp(command, "pci-ins", len)) {
          fprintf(logfile, "dm-command: hot insert pass-through pci dev \n");
  
@@ -1718,7 +1718,7 @@ diff -r e0605905cabc xenstore.c
          if (!par)
              goto out;
  
-@@ -1072,26 +1032,9 @@ static void xenstore_process_dm_command_
+@@ -1128,26 +1088,9 @@ static void xenstore_process_dm_command_
      }
  
   out:
@@ -1745,7 +1745,7 @@ diff -r e0605905cabc xenstore.c
  int
  xenstore_pv_driver_build_blacklisted(uint16_t product_nr,
                                       uint32_t build_nr)
-@@ -1135,7 +1078,7 @@ xenstore_pv_driver_build_blacklisted(uin
+@@ -1229,7 +1172,7 @@ xenstore_pv_driver_build_blacklisted(uin
  
  void xenstore_record_dm_state(const char *state)
  {
@@ -1754,7 +1754,7 @@ diff -r e0605905cabc xenstore.c
  }
  
  static void xenstore_process_vcpu_set_event(char **vec)
-@@ -1451,22 +1394,14 @@ void xenstore_write_vncport(int display)
+@@ -1545,22 +1488,14 @@ void xenstore_write_vncport(int display)
      free(buf);
  }
  
@@ -1783,7 +1783,7 @@ diff -r e0605905cabc xenstore.c
  
  void xenstore_read_vncpasswd(int domid, char *pwbuf, size_t pwbuflen)
  {
-@@ -1723,26 +1658,6 @@ char *xenstore_vm_read(int domid, const 
+@@ -1817,26 +1752,6 @@ char *xenstore_vm_read(int domid, const 
      return value;
  }
  
