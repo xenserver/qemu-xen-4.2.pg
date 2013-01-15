@@ -145,3 +145,4 @@ CA-87350-fix-qemu-crash-on-snapshot.patch
 constant_devfn_for_nic
 include_compat.patch
 evtchn_io_old_xen.patch
+evtchn_compat_define.patch
