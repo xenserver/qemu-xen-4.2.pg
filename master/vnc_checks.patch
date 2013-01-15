@@ -1,9 +1,10 @@
 # HG changeset patch
-# Parent 726fdf532aaf92fc81314274b4cc3331eb77909a
-diff -r 726fdf532aaf -r 1a99516fc6c9 console.c
---- a/console.c	Wed Jun 13 08:44:52 2012 +0100
-+++ b/console.c	Mon Jun 18 17:43:50 2012 +0100
-@@ -864,12 +864,15 @@ static void console_putchar(TextConsole 
+# Parent 040433fa4495f30ebe013e9ff80981fa9ff53670
+
+diff -r 040433fa4495 console.c
+--- a/console.c	Tue Jan 15 17:21:42 2013 +0000
++++ b/console.c	Tue Jan 15 17:24:01 2013 +0000
+@@ -884,13 +884,15 @@ static void console_putchar(TextConsole 
          break;
      case TTY_STATE_CSI: /* handle escape sequence parameters */
          if (ch >= '0' && ch <= '9') {
@@ -13,42 +14,14 @@ diff -r 726fdf532aaf -r 1a99516fc6c9 console.c
                      s->esc_params[s->nb_esc_params] * 10 + ch - '0';
              }
          } else {
--            s->nb_esc_params++;
-+            if (s->nb_esc_params < MAX_ESC_PARAMS)
-+                s->nb_esc_params++;
+             if (s->nb_esc_params < MAX_ESC_PARAMS)
+                 s->nb_esc_params++;
 +            if (s->nb_esc_params < MAX_ESC_PARAMS)
 +                s->esc_params[s->nb_esc_params] = 0;
              if (ch == ';')
                  break;
  #ifdef DEBUG_CONSOLE
-@@ -924,6 +927,9 @@ static void console_putchar(TextConsole 
-                 if (s->x < 0) {
-                     s->x = 0;
-                 }
-+                if (s->x >= s->width) {
-+                    s->x = s->width - 1;
-+                }
-                 break;
-             case 'f':
-             case 'H':
-@@ -932,10 +938,16 @@ static void console_putchar(TextConsole 
-                 if (s->x < 0) {
-                     s->x = 0;
-                 }
-+                if (s->x >= s->width) {
-+                    s->x = s->width - 1;
-+                }
-                 s->y = s->esc_params[0] - 1;
-                 if (s->y < 0) {
-                     s->y = 0;
-                 }
-+                if (s->y >= s->height) {
-+                    s->y = s->height - 1;
-+                }
-                 break;
-             case 'J':
-                 switch (s->esc_params[0]) {
-@@ -973,11 +985,11 @@ static void console_putchar(TextConsole 
+@@ -972,11 +974,11 @@ static void console_putchar(TextConsole 
              case 'K':
                  switch (s->esc_params[0]) {
                  case 0:
@@ -64,7 +37,7 @@ diff -r 726fdf532aaf -r 1a99516fc6c9 console.c
                  case 1:
                      /* clear from beginning of line */
                      for (x = 0; x <= s->x; x++) {
-@@ -990,11 +1002,11 @@ static void console_putchar(TextConsole 
+@@ -989,11 +991,11 @@ static void console_putchar(TextConsole 
                          console_clear_xy(s, x, s->y);
                      }
                  break;

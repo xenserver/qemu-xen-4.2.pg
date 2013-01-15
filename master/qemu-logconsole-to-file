@@ -1,18 +1,18 @@
-diff -r e27621275f9e qemu-char.c
---- a/qemu-char.c	Thu Mar 31 18:03:32 2011 +0100
-+++ b/qemu-char.c	Thu Mar 31 18:09:30 2011 +0100
+diff -r 58ec7bb071a5 qemu-char.c
+--- a/qemu-char.c	Tue Jan 15 15:55:13 2013 +0000
++++ b/qemu-char.c	Tue Jan 15 15:56:57 2013 +0000
 @@ -588,7 +588,7 @@ static CharDriverState *qemu_chr_open_fi
  {
      int fd_out;
  
--    TFR(fd_out = open(file_out, O_WRONLY | O_TRUNC | O_CREAT | O_BINARY, 0666));
+-    TFR(fd_out = open(file_out, O_WRONLY | O_TRUNC | O_CREAT | O_BINARY | O_APPEND, 0666));
 +    TFR(fd_out = open(file_out, O_WRONLY | O_APPEND | O_CREAT | O_BINARY, 0666));
      if (fd_out < 0)
          return NULL;
      return qemu_chr_open_fd(-1, fd_out);
-diff -r e27621275f9e sysemu.h
---- a/sysemu.h	Thu Mar 31 18:03:32 2011 +0100
-+++ b/sysemu.h	Thu Mar 31 18:09:30 2011 +0100
+diff -r 58ec7bb071a5 sysemu.h
+--- a/sysemu.h	Tue Jan 15 15:55:13 2013 +0000
++++ b/sysemu.h	Tue Jan 15 15:56:57 2013 +0000
 @@ -196,6 +196,7 @@ void pci_device_hot_remove_success(int p
  #define MAX_SERIAL_PORTS 4
  
@@ -21,9 +21,9 @@ diff -r e27621275f9e sysemu.h
  
  /* parallel ports */
  
-diff -r e27621275f9e vl.c
---- a/vl.c	Thu Mar 31 18:03:32 2011 +0100
-+++ b/vl.c	Thu Mar 31 18:09:30 2011 +0100
+diff -r 58ec7bb071a5 vl.c
+--- a/vl.c	Tue Jan 15 15:55:13 2013 +0000
++++ b/vl.c	Tue Jan 15 15:56:57 2013 +0000
 @@ -233,6 +233,7 @@ static int no_frame = 0;
  #endif
  int no_quit = 0;
@@ -49,9 +49,9 @@ diff -r e27621275f9e vl.c
              }
          }
      }
-diff -r e27621275f9e xenstore.c
---- a/xenstore.c	Thu Mar 31 18:03:32 2011 +0100
-+++ b/xenstore.c	Thu Mar 31 18:09:30 2011 +0100
+diff -r 58ec7bb071a5 xenstore.c
+--- a/xenstore.c	Tue Jan 15 15:55:13 2013 +0000
++++ b/xenstore.c	Tue Jan 15 15:56:57 2013 +0000
 @@ -488,6 +488,8 @@ void xenstore_parse_domain_config(int hv
      char *buf = NULL;
      char *fpath = NULL, *bpath = NULL,
