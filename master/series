@@ -143,3 +143,4 @@ vnc_checks.patch
 CA-86932-disable-console-for-parallel-port.patch
 CA-87350-fix-qemu-crash-on-snapshot.patch
 constant_devfn_for_nic
+include_compat.patch

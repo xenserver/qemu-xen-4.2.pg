@@ -1,0 +1,13 @@
+# HG changeset patch
+# Parent ab94a57cf2fb591952031f4830ba9b7c84da4db2
+diff -r ab94a57cf2fb -r 900428ce2851 mk/xen-device-model.spec.in
+--- a/mk/xen-device-model.spec.in	Tue Jan 15 17:28:54 2013 +0000
++++ b/mk/xen-device-model.spec.in	Tue Jan 15 17:44:55 2013 +0000
+@@ -14,6 +14,7 @@ This package contains qemu-dm, the Xen d
+ %prep
+ %setup -q
+ %patch0 -p1
++echo '#include <xs.h>' > 'xenstore.h'
+ 
+ %build
+ ./xen-setup --disable-opengl --disable-vnc-tls --disable-blobs
