@@ -1,6 +1,8 @@
-diff -r 2b2d3f8072d3 Rules.mk
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/Rules.mk	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/Rules.mk b/Rules.mk
+new file mode 100644
+index 0000000..86528b1
+--- /dev/null
++++ b/Rules.mk
 @@ -0,0 +1,29 @@
 +INSTALL      = install
 +INSTALL_DIR  = $(INSTALL) -d -m0755 -p
@@ -31,9 +33,10 @@ diff -r 2b2d3f8072d3 Rules.mk
 +CFLAGS += -Wdeclaration-after-statement
 +CFLAGS += -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
 +
-diff -r 2b2d3f8072d3 configure
---- a/configure	Wed Dec 22 14:35:20 2010 +0000
-+++ b/configure	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/configure b/configure
+index 904e019..53dfeeb 100755
+--- a/configure
++++ b/configure
 @@ -809,21 +809,6 @@ else
      fi
  fi # -z $sdl
@@ -69,30 +72,32 @@ diff -r 2b2d3f8072d3 configure
  echo "TOOLS=$tools" >> $config_mak
  
  test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h
-diff -r 2b2d3f8072d3 i386-dm/hookstarget.mak
---- a/i386-dm/hookstarget.mak	Wed Dec 22 14:35:20 2010 +0000
-+++ b/i386-dm/hookstarget.mak	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/i386-dm/hookstarget.mak b/i386-dm/hookstarget.mak
+index 0cce528..2bb2b51 100644
+--- a/i386-dm/hookstarget.mak
++++ b/i386-dm/hookstarget.mak
 @@ -3,4 +3,3 @@ IOEMU_OS=$(shell uname -s)
  install-hook:
  	$(INSTALL_DIR) "$(DESTDIR)/$(bindir)"
  	$(INSTALL_DIR) "$(DESTDIR)/$(configdir)"
 -	$(INSTALL_PROG) $(QEMU_ROOT)/i386-dm/qemu-ifup-$(IOEMU_OS) "$(DESTDIR)/$(configdir)/qemu-ifup"
-diff -r 2b2d3f8072d3 mk/Makefile
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/mk/Makefile b/mk/Makefile
+new file mode 100644
+index 0000000..26aaaf6
+--- /dev/null
++++ b/mk/Makefile
 @@ -0,0 +1,76 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +include $(B_BASE)/common.mk
 +include $(B_BASE)/rpmbuild.mk
 +
-+REPO_NAME= qemu-xen-4.1
++REPO_NAME= qemu-xen-4.2
 +RPM_BUILD_COOKIE= $(MY_OBJ_DIR)/.rpm_build_cookie
-+SYNC_COOKIE= $(call hg_sync_dep,$(REPO_NAME))
-+REPO_STAMP = $(call pq_req,$(REPO_NAME))
-+REPO = $(call hg_sync,$(REPO_NAME))
++REPO_STAMP = $(call git_req,$(REPO_NAME))
++REPO = $(call git_loc,$(REPO_NAME))
 +
-+export XEN_ROOT=$(call pq_loc,xen-4.1)
++export XEN_ROOT=$(call git_loc,xen-4.1)
 +
 +J_FLAG = 8
 +MAKE_CMD= $(MAKE) -j$(J_FLAG) -C $(REPO)
@@ -103,7 +108,7 @@ diff -r 2b2d3f8072d3 mk/Makefile
 +	$(call version-makefile) > $@
 +	awk -F. '{ print "REPO_VERSION=" $$0; }' \
 +		< $(REPO_STAMP) >> $@
-+	$(call pq_cset_number,$(REPO_NAME)) >> $@
++	$(call git_cset_number,$(REPO_NAME)) >> $@
 +	echo IOEMU_VERSION := \$$\(PRODUCT_VERSION\) >> $@
 +	echo IOEMU_RELEASE := \$$\(CSET_NUMBER\) >> $@
 +
@@ -121,7 +126,6 @@ diff -r 2b2d3f8072d3 mk/Makefile
 +	rm -f $(RPM_BUILD_COOKIE)
 +	rm -f $(MY_OBJ_DIR)/version.inc
 +	rm -f $(SOURCES)
-+	rm -f $(SYNC_COOKIE)
 +
 +$(MY_OUTPUT_DIR)/ioemu.inc:
 +	( echo IOEMU_PKG_NAME := xen-device-model && \
@@ -133,11 +137,13 @@ diff -r 2b2d3f8072d3 mk/Makefile
 +	  $(RPM_SOURCESDIR)/xen-device-model-development.patch \
 +	  $(RPM_SPECSDIR)/xen-device-model.spec
 +
-+$(RPM_SOURCESDIR)/xen-device-model-$(IOEMU_VERSION).tar.bz2: $(RPM_SOURCESDIR)/.dirstamp $(call pq_loc,$(REPO_NAME))
-+	cd $(call pq_loc,$(REPO_NAME)) && hg archive -X mk -t tbz2 $@
++$(RPM_SOURCESDIR)/xen-device-model-$(IOEMU_VERSION).tar.bz2: $(RPM_SOURCESDIR)/.dirstamp $(call git_loc,$(REPO_NAME))
++	set -e; set -o pipefail ;\
++	cd $(call git_loc,$(REPO_NAME)) ;\
++	git archive --prefix=xen-device-model-$(IOEMU_VERSION)/ HEAD | bzip2 -c > $@
 +
-+$(RPM_SOURCESDIR)/xen-device-model-development.patch: $(RPM_SOURCESDIR)/.dirstamp $(call pq_loc,$(REPO_NAME))
-+	cd $(call pq_loc,$(REPO_NAME)) && hg diff -X mk > $@
++$(RPM_SOURCESDIR)/xen-device-model-development.patch: $(RPM_SOURCESDIR)/.dirstamp $(call git_loc,$(REPO_NAME))
++	cd $(call git_loc,$(REPO_NAME)) && git diff > $@
 +
 +$(RPM_SPECSDIR)/xen-device-model.spec: xen-device-model.spec.in $(RPM_SPECSDIR)/.dirstamp
 +# Use a temporary file because sed in rhel3 doesn't understand "\n"
@@ -157,9 +163,11 @@ diff -r 2b2d3f8072d3 mk/Makefile
 +	@touch $@
 +
 +$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP) $(RPM_BUILD_COOKIE)
-diff -r 2b2d3f8072d3 mk/xen-device-model.spec.in
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/xen-device-model.spec.in	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/mk/xen-device-model.spec.in b/mk/xen-device-model.spec.in
+new file mode 100644
+index 0000000..492c6a8
+--- /dev/null
++++ b/mk/xen-device-model.spec.in
 @@ -0,0 +1,39 @@
 +Summary: qemu-dm device model
 +Name: xen-device-model
@@ -200,10 +208,11 @@ diff -r 2b2d3f8072d3 mk/xen-device-model.spec.in
 +%dir /var/xen/qemu
 +
 +%changelog
-diff -r 2b2d3f8072d3 sdl.c
---- a/sdl.c	Wed Dec 22 14:35:20 2010 +0000
-+++ b/sdl.c	Wed Dec 22 16:02:20 2010 +0000
-@@ -388,7 +388,7 @@ static uint8_t sdl_keyevent_to_keycode(c
+diff --git a/sdl.c b/sdl.c
+index 796ecf9..0c8a2aa 100644
+--- a/sdl.c
++++ b/sdl.c
+@@ -388,7 +388,7 @@ static uint8_t sdl_keyevent_to_keycode(const SDL_KeyboardEvent *ev)
  
  #else
  
@@ -212,9 +221,10 @@ diff -r 2b2d3f8072d3 sdl.c
  #include <X11/XKBlib.h>
  
  static int check_for_evdev(void)
-diff -r 2b2d3f8072d3 xen-config-host.mak
---- a/xen-config-host.mak	Wed Dec 22 14:35:20 2010 +0000
-+++ b/xen-config-host.mak	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/xen-config-host.mak b/xen-config-host.mak
+index aea181f..853789f 100644
+--- a/xen-config-host.mak
++++ b/xen-config-host.mak
 @@ -1,6 +1,6 @@
  QEMU_ROOT ?= .
  XEN_ROOT ?= $(QEMU_ROOT)/../xen-unstable.hg
@@ -223,9 +233,10 @@ diff -r 2b2d3f8072d3 xen-config-host.mak
  
  ifdef CONFIG_STUBDOM
  export TARGET_DIRS=i386-stubdom
-diff -r 2b2d3f8072d3 xen-config.mak
---- a/xen-config.mak	Wed Dec 22 14:35:20 2010 +0000
-+++ b/xen-config.mak	Wed Dec 22 16:02:20 2010 +0000
+diff --git a/xen-config.mak b/xen-config.mak
+index 77fef4f..f099478 100644
+--- a/xen-config.mak
++++ b/xen-config.mak
 @@ -9,4 +9,4 @@ CONFIG_SOFTMMU=yes
  
  CFLAGS += -I$(QEMU_ROOT)/hw
