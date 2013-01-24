@@ -76,7 +76,6 @@ disable-blktap
 build-makefiles
 no_install-s
 # Change the buildrequires line of the spec file to allow building with mock
-fix-buildrequires
 
 #
 # Compatible with upstream but not worth the effort of upstreaming
@@ -143,6 +142,5 @@ vnc_checks.patch
 CA-86932-disable-console-for-parallel-port.patch
 CA-87350-fix-qemu-crash-on-snapshot.patch
 constant_devfn_for_nic
-include_compat.patch
 evtchn_io_old_xen.patch
 evtchn_compat_define.patch
