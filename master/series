@@ -73,7 +73,7 @@ product-nr-1-blacklist
 #
 
 disable-blktap
-build-makefiles
+build-makefiles.patch
 no_install-s
 # Change the buildrequires line of the spec file to allow building with mock
 
@@ -127,7 +127,6 @@ hvm-multicore
 depriv_qemu
 move-disable-pf-key
 CA-41014-cannot-start-100th-VM
-sources-target-in-Makefile
 #
 ## Disable firmware config (fw_cfg) port
 CA-32196-disable-fw-cfg
@@ -135,7 +134,6 @@ abort-on-bad-loadvm
 savevm_dummy_handler_for_pcislots
 retry_receivefd_on_EINTR
 fix-vnc-overflow
-EA-1012-rpm-names
 fix_term_handling_if_paused.patch # upstream does not present same problem
 vnc_checks.patch
 
