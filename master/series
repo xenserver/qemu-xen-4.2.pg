@@ -146,3 +146,4 @@ constant_devfn_for_nic
 include_compat.patch
 evtchn_io_old_xen.patch
 evtchn_compat_define.patch
+less_xs_connection.patch

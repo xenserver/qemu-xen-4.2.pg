@@ -1,0 +1,287 @@
+This patch allow to use less XenStore connections.
+
+Currently Qemu use a single thread mode so there is no concurrency problems.
+
+The patch use a single xs_handle (created in xenstore.c).
+Changed xenstore_watch_new_callback to allow to register a generic function
+which is called for any watched event from XenStore so can be used to setup
+additional watches without creating additional connections.
+
+Signed-off-by: Frediano Ziglio <frediano.ziglio@citrix.com>
+
+diff --git a/hw/xen_backend.c b/hw/xen_backend.c
+index 92b3506..4b6f90d 100644
+--- a/hw/xen_backend.c
++++ b/hw/xen_backend.c
+@@ -39,13 +39,14 @@
+ #include "hw.h"
+ #include "qemu-char.h"
+ #include "qemu-log.h"
++#include "qemu-xen.h"
+ #include "xen_backend.h"
+ 
+ /* ------------------------------------------------------------- */
+ 
+ /* public */
+ xc_interface *xen_xc;
+-struct xs_handle *xenstore = NULL;
++static struct xs_handle *xenstore = NULL;
+ const char *xen_protocol;
+ 
+ /* private */
+@@ -557,7 +558,7 @@ int xenstore_scan(const char *type, int dom, struct XenDevOps *ops)
+     return 0;
+ }
+ 
+-static void xenstore_update_be(char *watch, char *type, int dom,
++static void xenstore_update_be(const char *watch, char *type, int dom,
+ 			       struct XenDevOps *ops)
+ {
+     struct XenDevice *xendev;
+@@ -589,9 +590,9 @@ static void xenstore_update_be(char *watch, char *type, int dom,
+     }
+ }
+ 
+-static void xenstore_update_fe(char *watch, struct XenDevice *xendev)
++static void xenstore_update_fe(const char *watch, struct XenDevice *xendev)
+ {
+-    char *node;
++    const char *node;
+     unsigned int len;
+ 
+     len = strlen(xendev->fe);
+@@ -605,24 +606,16 @@ static void xenstore_update_fe(char *watch, struct XenDevice *xendev)
+     xen_be_check_state(xendev);
+ }
+ 
+-static void xenstore_update(void *unused)
++static void xenstore_update(const char *path, const char *token, void *opaque)
+ {
+-    char **vec = NULL;
+     intptr_t type, ops, ptr;
+-    unsigned int dom, count;
++    unsigned int dom;
+ 
+-    vec = xs_read_watch(xenstore, &count);
+-    if (vec == NULL)
+-	goto cleanup;
+-
+-    if (sscanf(vec[XS_WATCH_TOKEN], "be:%" PRIxPTR ":%d:%" PRIxPTR,
++    if (sscanf(token, "be:%" PRIxPTR ":%d:%" PRIxPTR,
+                &type, &dom, &ops) == 3)
+-	xenstore_update_be(vec[XS_WATCH_PATH], (void*)type, dom, (void*)ops);
+-    if (sscanf(vec[XS_WATCH_TOKEN], "fe:%" PRIxPTR, &ptr) == 1)
+-	xenstore_update_fe(vec[XS_WATCH_PATH], (void*)ptr);
+-
+-cleanup:
+-    qemu_free(vec);
++	xenstore_update_be(path, (void*)type, dom, (void*)ops);
++    if (sscanf(token, "fe:%" PRIxPTR, &ptr) == 1)
++	xenstore_update_fe(path, (void*)ptr);
+ }
+ 
+ static void xen_be_evtchn_event(void *opaque)
+@@ -650,14 +643,14 @@ int xen_be_init(void)
+     return 0;
+ #endif
+ 
+-    xenstore = xs_daemon_open();
++    xenstore = xenstore_get();
+     if (!xenstore) {
+ 	xen_be_printf(NULL, 0, "can't connect to xenstored\n");
+ 	return -1;
+     }
+ 
+-    if (qemu_set_fd_handler(xs_fileno(xenstore), xenstore_update, NULL, NULL) < 0)
+-	goto err;
++    if (!xenstore_watch_new_callback(NULL, xenstore_update, NULL))
++        goto err;
+ 
+     xen_xc = xc_interface_open(0,0,0);
+     if (!xen_xc) {
+@@ -667,8 +660,6 @@ int xen_be_init(void)
+     return 0;
+ 
+ err:
+-    qemu_set_fd_handler(xs_fileno(xenstore), NULL, NULL, NULL);
+-    xs_daemon_close(xenstore);
+     xenstore = NULL;
+ 
+     return -1;
+diff --git a/hw/xen_backend.h b/hw/xen_backend.h
+index e421391..b63a235 100644
+--- a/hw/xen_backend.h
++++ b/hw/xen_backend.h
+@@ -55,7 +55,6 @@ struct XenDevice {
+ 
+ /* variables */
+ extern xc_interface *xen_xc;
+-extern struct xs_handle *xenstore;
+ extern const char *xen_protocol;
+ 
+ /* xenstore helper functions */
+diff --git a/hw/xen_console.c b/hw/xen_console.c
+index 80beb31..ca781bb 100644
+--- a/hw/xen_console.c
++++ b/hw/xen_console.c
+@@ -37,6 +37,7 @@
+ #include "sysemu.h"
+ #include "qemu-char.h"
+ #include "xen_backend.h"
++#include "qemu-xen.h"
+ 
+ struct buffer {
+     uint8_t *data;
+@@ -185,7 +186,7 @@ static int con_init(struct XenDevice *xendev)
+     const char *output;
+ 
+     /* setup */
+-    dom = xs_get_domain_path(xenstore, con->xendev.dom);
++    dom = xs_get_domain_path(xenstore_get(), con->xendev.dom);
+     if (!xendev->dev)
+         snprintf(con->console, sizeof(con->console), "%s/console", dom);
+     else
+diff --git a/hw/xen_platform.c b/hw/xen_platform.c
+index a095804..6265d4f 100644
+--- a/hw/xen_platform.c
++++ b/hw/xen_platform.c
+@@ -65,7 +65,7 @@ set_platform_flags(uint8_t flags)
+     }
+ }
+ 
+-static void log_throttling(const char *path, void *opaque)
++static void log_throttling(const char *path, const char *token, void *opaque)
+ {
+     int len;
+     char *throttling = xenstore_dom_read(domid, "log-throttling", &len);
+diff --git a/qemu-xen.h b/qemu-xen.h
+index 7891419..ee11bfa 100644
+--- a/qemu-xen.h
++++ b/qemu-xen.h
+@@ -67,8 +67,10 @@ void xenstore_init(void);
+ uint32_t xenstore_read_target(void);
+ void xenstore_parse_domain_config(int domid);
+ int xenstore_parse_disable_pf_config(void);
++struct pci_config_header;
+ void xenstore_parse_pf_config(struct pci_config_header *pch);
+ int xenstore_fd(void);
++struct xs_handle *xenstore_get(void);
+ void xenstore_process_event(void *opaque);
+ void xenstore_record_dm_state(const char *state);
+ void xenstore_check_new_media_present(int timeout);
+@@ -97,7 +99,7 @@ int xenstore_unsubscribe_from_hotplug_status(struct xs_handle *handle,
+                                              const char *inst,
+                                              const char *token);
+ 
+-typedef void (*xenstore_callback) (const char *path, void *opaque);
++typedef void (*xenstore_callback) (const char *path, const char *token, void *opaque);
+ int xenstore_watch_new_callback(const char *path, xenstore_callback fptr, void *opaque);
+ 
+ char *xenstore_dom_read(int domid, const char *key, unsigned int *len);
+diff --git a/xenstore.c b/xenstore.c
+index c08f052..def04ec 100644
+--- a/xenstore.c
++++ b/xenstore.c
+@@ -25,6 +25,7 @@
+ #include "privsep.h"
+ #include "qemu-xen.h"
+ #include "console.h"
++#include "xen_backend.h"
+ 
+ /* The token used to identify the keymap watch. */
+ #define KEYMAP_TOKEN "keymap"
+@@ -35,7 +36,7 @@
+ /* The token used to identify the report_clipboard watch. */
+ #define REPORT_CLIPBOARD_TOKEN "report_clipboard"
+ 
+-struct xs_handle *xsh = NULL;
++static struct xs_handle *xsh = NULL;
+ static char *media_filename[MAX_DRIVES+1];
+ static QEMUTimer *insert_timer = NULL;
+ static char *xenbus_param_paths[MAX_DRIVES+1];
+@@ -104,35 +105,42 @@ int xenstore_watch_new_callback(const char          *path,
+                                 xenstore_callback   fptr,
+                                 void                *opaque)
+ {
+-    int         i = 0, ret = 0;
++    int         i = 0, ret = 1;
+ 
+-    ret = xs_watch(xsh, path, path);
+-    if (ret == 0)
+-        return 0;
++    if ( path != NULL )
++    {
++        ret = xs_watch(xsh, path, path);
++        if (ret == 0)
++            return 0;
++    }
+ 
+     if (!xenstore_watch_callbacks)
+     {
+         xenstore_watch_callbacks = malloc(sizeof (struct xenstore_watch_cb_t));
+-        xenstore_watch_callbacks[0].path = NULL;
++        xenstore_watch_callbacks[0].cb = NULL;
+     }
+ 
+-    while (xenstore_watch_callbacks[i].path)
++    for ( ; xenstore_watch_callbacks[i].cb; ++i )
+     {
+-	if (!strcmp(xenstore_watch_callbacks[i].path, path))
+-	{
+-	    xenstore_watch_callbacks[i].cb = fptr;
+-	    xenstore_watch_callbacks[i].opaque = opaque;
+-	    return ret;
+-	}
+-        i++;
++        if ( xenstore_watch_callbacks[i].path == NULL ) {
++            if ( path != NULL || xenstore_watch_callbacks[i].cb != fptr )
++                continue;
++        } else {
++            if ( path == NULL || strcmp(xenstore_watch_callbacks[i].path, path) != 0 )
++                continue;
++        }
++
++        xenstore_watch_callbacks[i].cb = fptr;
++        xenstore_watch_callbacks[i].opaque = opaque;
++        return ret;
+     }
+ 
+     xenstore_watch_callbacks = realloc(xenstore_watch_callbacks,
+                                        (i + 2) * sizeof (struct xenstore_watch_cb_t));
+-    xenstore_watch_callbacks[i].path = strdup(path);
++    xenstore_watch_callbacks[i].path = path ? strdup(path) : NULL;
+     xenstore_watch_callbacks[i].cb = fptr;
+     xenstore_watch_callbacks[i].opaque = opaque;
+-    xenstore_watch_callbacks[i + 1].path = NULL;
++    xenstore_watch_callbacks[i + 1].cb = NULL;
+     return ret;
+ }
+ 
+@@ -981,6 +989,12 @@ int xenstore_fd(void)
+     return -1;
+ }
+ 
++struct xs_handle *xenstore_get(void)
++{
++    return xsh;
++}
++
++
+ static void xenstore_process_logdirty_event(void)
+ {
+     char *act;
+@@ -1381,10 +1395,11 @@ void xenstore_process_event(void *opaque)
+     if (xen_pause_requested)
+         goto out;
+ 
+-    for (i = 0; xenstore_watch_callbacks &&  xenstore_watch_callbacks[i].path; i++)
+-	if (xenstore_watch_callbacks[i].cb &&
++    for (i = 0; xenstore_watch_callbacks && xenstore_watch_callbacks[i].cb; i++)
++	if (xenstore_watch_callbacks[i].path == NULL ||
+ 	    !strcmp(vec[XS_WATCH_TOKEN], xenstore_watch_callbacks[i].path))
+-            xenstore_watch_callbacks[i].cb(vec[XS_WATCH_TOKEN],
++            xenstore_watch_callbacks[i].cb(vec[XS_WATCH_PATH],
++                                           vec[XS_WATCH_TOKEN],
+                                            xenstore_watch_callbacks[i].opaque);
+ 
+     hd_index = drive_name_to_index(vec[XS_WATCH_TOKEN]);
