@@ -1,0 +1,44 @@
+
+What is QEMU ?
+===============
+
+QEMU is a FAST! processor emulator using dynamic translation to
+achieve good emulation speed.
+
+QEMU is used by XenServer is its full system emulation mode. In
+this mode, QEMU emulates a full system including one or several
+processors and various peripherals. It can be used to launch 
+different Operating Systems without rebooting the PC or to debug
+system code.
+
+QEMU can run without an host kernel driver and yet gives acceptable
+performance.
+
+For more information see:
+   http://wiki.qemu.org/
+
+
+What is this repository ?
+==========================
+
+This is the repository of XenServer-specific patches to QEMU.
+
+To contribute bug fixes, email them to the XenServer development mailing
+
+	list (xs-devel@lists.xenserver.org).
+										
+For any new features, please work with the upstream QEMU project and
+request backports by emailing the XenServer development mailing list
+
+	(xs-devel@lists.xenserver.org).
+
+Refer to http://wiki.qemu.org/ for information on contributing to
+the QEMU project.
+
+
+
+What other documentation is available ?
+========================================
+
+To install QEMU for XenServer please read INSTALL.
+
