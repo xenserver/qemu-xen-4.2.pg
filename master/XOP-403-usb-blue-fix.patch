@@ -1,0 +1,79 @@
+Windows 8.1 (Blue) on initialization check if usb frame number increase after
+5 ms. It could happen however that timer function is not run in that amount
+of time so Windows believe that usb controller is not working properly.
+This patch prevent this detecting that timer function was not run and run it.
+
+diff --git a/hw/usb-uhci.c b/hw/usb-uhci.c
+index 746a1f5..4ab91f8 100644
+--- a/hw/usb-uhci.c
++++ b/hw/usb-uhci.c
+@@ -129,6 +129,7 @@ typedef struct UHCIState {
+     uint32_t fl_base_addr; /* frame list base address */
+     uint8_t sof_timing;
+     uint8_t status2; /* bit 0 and 1 are used to generate UHCI_STS_USBINT */
++    int64_t expire_time;
+     QEMUTimer *frame_timer;
+     UHCIPort ports[NB_PORTS];
+ 
+@@ -166,6 +167,8 @@ static UHCIAsync *uhci_async_alloc(UHCIState *s)
+     return async;
+ }
+ 
++static void uhci_frame_timer(void *opaque);
++
+ static void uhci_async_free(UHCIState *s, UHCIAsync *async)
+ {
+     qemu_free(async);
+@@ -406,6 +409,8 @@ static int uhci_load(QEMUFile *f, void *opaque, int version_id)
+             qemu_get_be16s(f, &s->ports[i].ctrl);
+ 
+     qemu_get_timer(f, s->frame_timer);
++    s->expire_time = qemu_get_clock(vm_clock) +
++        (ticks_per_sec / FRAME_TIMER_FREQ);
+ 
+     return 0;
+ }
+@@ -449,8 +454,11 @@ static void uhci_ioport_writew(void *opaque, uint32_t addr, uint32_t val)
+     switch(addr) {
+     case 0x00:
+         if ((val & UHCI_CMD_RS) && !(s->cmd & UHCI_CMD_RS)) {
++            int64_t t_now = qemu_get_clock(vm_clock);
+             /* start frame processing */
+-            qemu_mod_timer(s->frame_timer, qemu_get_clock(vm_clock));
++            s->expire_time = t_now +
++                (ticks_per_sec / FRAME_TIMER_FREQ);
++            qemu_mod_timer(s->frame_timer, t_now);
+             s->status &= ~UHCI_STS_HCHALTED;
+         } else if (!(val & UHCI_CMD_RS)) {
+             s->status |= UHCI_STS_HCHALTED;
+@@ -536,6 +544,10 @@ static uint32_t uhci_ioport_readw(void *opaque, uint32_t addr)
+         val = s->intr;
+         break;
+     case 0x06:
++        /* keep frame number in sync */
++        if ((s->status & UHCI_STS_HCHALTED) == 0 &&
++            s->expire_time <= qemu_get_clock(vm_clock))
++            uhci_frame_timer(s);
+         val = s->frnum;
+         break;
+     case 0x10 ... 0x1f:
+@@ -1028,7 +1040,6 @@ static void uhci_process_frame(UHCIState *s)
+ static void uhci_frame_timer(void *opaque)
+ {
+     UHCIState *s = opaque;
+-    int64_t expire_time;
+ 
+     if (!(s->cmd & UHCI_CMD_RS)) {
+         /* Full stop */
+@@ -1059,9 +1070,9 @@ static void uhci_frame_timer(void *opaque)
+     uhci_async_validate_end(s);
+ 
+     /* prepare the timer for the next frame */
+-    expire_time = qemu_get_clock(vm_clock) +
++    s->expire_time = qemu_get_clock(vm_clock) +
+         (ticks_per_sec / FRAME_TIMER_FREQ);
+-    qemu_mod_timer(s->frame_timer, expire_time);
++    qemu_mod_timer(s->frame_timer, s->expire_time);
+ }
+ 
+ static void uhci_map(PCIDevice *pci_dev, int region_num,
