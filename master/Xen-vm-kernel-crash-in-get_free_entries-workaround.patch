@@ -1,0 +1,18 @@
+diff --git a/xenstore.c b/xenstore.c
+index b104b73..96e2348 100644
+--- a/xenstore.c
++++ b/xenstore.c
+@@ -1170,8 +1170,12 @@ xenstore_pv_driver_build_blacklisted(uint16_t product_nr,
+         device_id = (build_nr >> 8) & 0xffff;
+         revision = build_nr & 0xff;
+ 
+-        if (product_nr == 3 && device_id == 0)
++        if (product_nr == 3 && device_id == 0) {
++	    /* Assume PVonHVM linux */
++	    if (platform_device_id != 0x0001)
++	        blacklist = 1;
+             break;
++	}
+ 
+         if (device_id != platform_device_id ||
+             revision < platform_revision)
